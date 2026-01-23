@@ -37,6 +37,7 @@
         font-family: monospace; overflow-y: auto;
       }
       .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+      .btn-active { active:scale-95 transition-all; }
     </style>
 
     <script type="importmap">
@@ -70,12 +71,14 @@
       import { 
         ShieldCheck, User, MapPin, Factory, Settings, Info, Zap, Wind, 
         AlertCircle, CheckCircle2, ChevronRight, Minus, Trash2, Edit2,
-        ClipboardCheck, CloudUpload, Loader2, Camera, ChevronLeft, Save, X, Image as ImageIcon, Plus
+        ClipboardCheck, CloudUpload, Loader2, Camera, ChevronLeft, Save, X, Image as ImageIcon, Plus, RefreshCcw
       } from 'lucide-react';
       import * as docx from 'docx';
 
       // --- TYPES & CONSTANTS ---
-      const APP_VERSION = "v1.4.7-stable";
+      const APP_VERSION = "v1.4.8-offline-persist";
+      const STORAGE_KEY = "INDUSTRIAL_INSPECTOR_DATA";
+      
       const SiteType = { WTW: 'WTW', STW: 'STW' };
       const RiskLevel = { LOW: 'Low', MED: 'Med', HI: 'Hi' };
       const AssetCategory = {
@@ -139,10 +142,12 @@
       }
 
       // --- COMPONENTS ---
-      const SetupScreen = ({ onStart }) => {
-        const [userName, setUserName] = useState('');
-        const [siteName, setSiteName] = useState('');
-        const [siteType, setSiteType] = useState(SiteType.WTW);
+      const SetupScreen = ({ onStart, initialData, onClear }) => {
+        const [userName, setUserName] = useState(initialData?.userName || '');
+        const [siteName, setSiteName] = useState(initialData?.siteName || '');
+        const [siteType, setSiteType] = useState(initialData?.siteType || SiteType.WTW);
+
+        const hasExistingData = initialData && initialData.siteName;
 
         return (
           <div className="p-6 h-full flex flex-col justify-center min-h-[600px] max-w-sm mx-auto w-full">
@@ -151,8 +156,20 @@
                 <ShieldCheck className="w-10 h-10 text-blue-600" />
               </div>
               <h2 className="text-2xl font-bold text-slate-800">Site Inspector</h2>
-              <p className="text-slate-500">Configure your inspection details</p>
+              <p className="text-slate-500">Professional Asset Verification</p>
             </div>
+            
+            {hasExistingData && (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+                <p className="font-bold">Resume Inspection?</p>
+                <p>Found unsaved data for <strong>{initialData.siteName}</strong>.</p>
+                <div className="flex gap-2 mt-3">
+                   <button onClick={() => onStart(userName, siteName, siteType)} className="bg-amber-600 text-white px-4 py-2 rounded-lg font-bold">Resume</button>
+                   <button onClick={() => { if(confirm("This will permanently delete current progress. Continue?")) onClear(); }} className="bg-white border border-amber-300 px-4 py-2 rounded-lg font-bold">Start New</button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <input placeholder="Inspector Name" className="w-full p-4 rounded-xl border border-slate-300" value={userName} onChange={e => setUserName(e.target.value)} />
               <input placeholder="Site Name" className="w-full p-4 rounded-xl border border-slate-300" value={siteName} onChange={e => setSiteName(e.target.value)} />
@@ -160,8 +177,11 @@
                 <option value={SiteType.WTW}>Water Treatment Works (WTW)</option>
                 <option value={SiteType.STW}>Sewage Treatment Works (STW)</option>
               </select>
-              <button disabled={!userName || !siteName} onClick={() => onStart(userName, siteName, siteType)} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg disabled:opacity-50">Start Inspection</button>
+              <button disabled={!userName || !siteName} onClick={() => onStart(userName, siteName, siteType)} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg disabled:opacity-50">
+                {hasExistingData ? "Continue Inspection" : "Start Inspection"}
+              </button>
             </div>
+            <p className="text-center mt-8 text-[10px] text-slate-400 uppercase font-black tracking-widest">{APP_VERSION}</p>
           </div>
         );
       };
@@ -263,14 +283,35 @@
 
       const App = () => {
         const [view, setView] = useState('SETUP');
-        const [data, setData] = useState({
-          userName: '', siteName: '', siteType: SiteType.WTW, date: new Date().toLocaleDateString(),
-          compliantCounts: { [AssetCategory.PUMPS]: 0, [AssetCategory.MOTORS]: 0, [AssetCategory.COMPRESSORS]: 0, [AssetCategory.ELECTRICAL_PANELS]: 0 },
-          observations: []
+        const [data, setData] = useState(() => {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) return JSON.parse(saved);
+          return {
+            userName: '', siteName: '', siteType: SiteType.WTW, date: new Date().toLocaleDateString(),
+            compliantCounts: { [AssetCategory.PUMPS]: 0, [AssetCategory.MOTORS]: 0, [AssetCategory.COMPRESSORS]: 0, [AssetCategory.ELECTRICAL_PANELS]: 0 },
+            observations: []
+          };
         });
+        
         const [activeCategory, setActiveCategory] = useState(AssetCategory.PUMPS);
         const [editingObservation, setEditingObservation] = useState(null);
         const [isExporting, setIsExporting] = useState(false);
+
+        // PERSISTENCE EFFECT
+        useEffect(() => {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }, [data]);
+
+        const resetData = () => {
+          const empty = {
+            userName: '', siteName: '', siteType: SiteType.WTW, date: new Date().toLocaleDateString(),
+            compliantCounts: { [AssetCategory.PUMPS]: 0, [AssetCategory.MOTORS]: 0, [AssetCategory.COMPRESSORS]: 0, [AssetCategory.ELECTRICAL_PANELS]: 0 },
+            observations: []
+          };
+          setData(empty);
+          localStorage.removeItem(STORAGE_KEY);
+          setView('SETUP');
+        };
 
         const handleExport = async () => {
           setIsExporting(true);
@@ -297,10 +338,7 @@
 
             const children = [
               new Paragraph({ text: "SITE INSPECTION REPORT", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
-              
               new Paragraph({ text: "Inspection Summary", heading: HeadingLevel.HEADING_2, spacing: { after: 200 } }),
-              
-              // New Professional Summary Table
               new Table({
                 width: { size: 100, type: WidthType.PERCENTAGE },
                 rows: [
@@ -326,9 +364,7 @@
                   })
                 ]
               }),
-
               new Paragraph({ text: "Compliance by Category", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
-              
               new Table({
                 width: { size: 100, type: WidthType.PERCENTAGE },
                 rows: [
@@ -376,12 +412,17 @@
             const link = document.createElement("a");
             link.href = url; link.download = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
             link.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            setTimeout(() => { 
+                URL.revokeObjectURL(url);
+                if(confirm("Report exported! Would you like to clear the app and start a fresh site?")) {
+                    resetData();
+                }
+            }, 2000);
           } catch (e) { alert("Export Error: " + e.message); console.error(e); }
           setIsExporting(false);
         };
 
-        if (view === 'SETUP') return <SetupScreen onStart={(u, s, t) => { setData({ ...data, userName: u, siteName: s, siteType: t }); setView('DASHBOARD'); }} />;
+        if (view === 'SETUP') return <SetupScreen onStart={(u, s, t) => { setData({ ...data, userName: u, siteName: s, siteType: t }); setView('DASHBOARD'); }} initialData={data} onClear={resetData} />;
         
         if (view === 'FORM') return <ObservationForm category={activeCategory} initialData={editingObservation} onBack={() => setView('DASHBOARD')} onSave={(obs) => {
           const isEdit = data.observations.find(o => o.id === obs.id);
@@ -391,9 +432,12 @@
 
         return (
           <div className="max-w-lg mx-auto w-full bg-slate-50 min-h-screen flex flex-col border-x">
-            <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-10">
-              <h1 className="text-lg font-bold">{data.siteName}</h1>
-              <p className="text-[10px] opacity-80 uppercase tracking-widest font-black">{data.siteType} INSPECTION • {APP_VERSION}</p>
+            <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-10 flex justify-between items-center">
+              <div>
+                <h1 className="text-lg font-bold">{data.siteName}</h1>
+                <p className="text-[10px] opacity-80 uppercase tracking-widest font-black">{data.siteType} INSPECTION</p>
+              </div>
+              <button onClick={() => { if(confirm("Discard all data and start over?")) resetData(); }} className="p-2 bg-blue-800 rounded-lg"><RefreshCcw size={16}/></button>
             </header>
             <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
               {[AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS].map(cat => (
