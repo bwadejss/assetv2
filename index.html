@@ -75,7 +75,7 @@
       import * as docx from 'docx';
 
       // --- TYPES & CONSTANTS ---
-      const APP_VERSION = "v1.4.6-stable";
+      const APP_VERSION = "v1.4.7-stable";
       const SiteType = { WTW: 'WTW', STW: 'STW' };
       const RiskLevel = { LOW: 'Low', MED: 'Med', HI: 'Hi' };
       const AssetCategory = {
@@ -280,19 +280,59 @@
             const maintObs = data.observations.filter(o => o.category !== AssetCategory.NON_MAINTENANCE);
             const nonMaintObs = data.observations.filter(o => o.category === AssetCategory.NON_MAINTENANCE);
             const totalNonMaintNC = nonMaintObs.reduce((s, o) => s + o.nonComplianceCount, 0);
+            const prevSeenCount = data.observations.filter(o => o.previouslySeen === 'Yes').length;
+
+            const generateSummaryRow = (label, value, isSpecial = false, color = null) => new TableRow({
+                children: [
+                    new TableCell({ 
+                        children: [new Paragraph({ children: [new TextRun({ text: label, bold: true })] })], 
+                        width: { size: 40, type: WidthType.PERCENTAGE },
+                        shading: isSpecial ? { fill: "F2F2F2" } : undefined
+                    }),
+                    new TableCell({ 
+                        children: [new Paragraph({ children: [new TextRun({ text: `${value}`, bold: isSpecial, color: color || "000000" })] })] 
+                    }),
+                ]
+            });
 
             const children = [
               new Paragraph({ text: "SITE INSPECTION REPORT", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
-              new Paragraph({ children: [
-                new TextRun({ text: `Inspector: ${data.userName}\tSite: ${data.siteName} (${data.siteType})\tDate: ${data.date}`, bold: true })
-              ] }),
-              new Paragraph({ text: `Non-Maintenance Issue Count: ${totalNonMaintNC}`, spacing: { before: 200 } }),
-              new Paragraph({ text: `Compliance Rating: ${stats.compliancePercentage}%`, bold: true }),
-              new Paragraph({ text: `Site Issue Score: ${stats.siteIssueScore}`, spacing: { after: 200 } }),
+              
+              new Paragraph({ text: "Inspection Summary", heading: HeadingLevel.HEADING_2, spacing: { after: 200 } }),
+              
+              // New Professional Summary Table
               new Table({
                 width: { size: 100, type: WidthType.PERCENTAGE },
                 rows: [
-                  new TableRow({ children: [new TableCell({ children: [new Paragraph("Category")], shading: { fill: "F2F2F2" } }), new TableCell({ children: [new Paragraph("Compliant")], shading: { fill: "F2F2F2" } }), new TableCell({ children: [new Paragraph("Non-Compliant")], shading: { fill: "F2F2F2" } })] }),
+                  generateSummaryRow("Inspector", data.userName),
+                  generateSummaryRow("Site Name", data.siteName),
+                  generateSummaryRow("Site Type", data.siteType),
+                  generateSummaryRow("Inspection Date", data.date),
+                  generateSummaryRow("Total Assets Verified", stats.totalAssetsChecked),
+                  generateSummaryRow("Total Maintenance Non-Compliances", stats.totalNC_Sum),
+                  generateSummaryRow("Issues Seen Previously", prevSeenCount),
+                  generateSummaryRow("Non-Maintenance Issue Count (Sum NC)", totalNonMaintNC),
+                  new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Site Issue Score (SIS)", bold: true })] })], shading: { fill: "E0F2F1" } }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${stats.siteIssueScore}`, bold: true, size: 28, color: Number(stats.siteIssueScore) > 0.5 ? "FF0000" : "000000" })] })], shading: { fill: "E0F2F1" } }),
+                    ]
+                  }),
+                  new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Site Compliance %", bold: true })] })], shading: { fill: "F9FBE7" } }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${stats.compliancePercentage}%`, bold: true, color: stats.compliancePercentage < 75 ? "FF0000" : "008000" })] })], shading: { fill: "F9FBE7" } }),
+                    ]
+                  })
+                ]
+              }),
+
+              new Paragraph({ text: "Compliance by Category", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
+              
+              new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                  new TableRow({ children: [new TableCell({ children: [new Paragraph("Category")], shading: { fill: "F2F2F2" } }), new TableCell({ children: [new Paragraph("Compliant")], shading: { fill: "F2F2F2" } }), new TableCell({ children: [new Paragraph("Non-Compliant Assets")], shading: { fill: "F2F2F2" } })] }),
                   ...Object.keys(data.compliantCounts).map(cat => new TableRow({
                     children: [new TableCell({ children: [new Paragraph(cat)] }), new TableCell({ children: [new Paragraph(`${data.compliantCounts[cat]}`)] }), new TableCell({ children: [new Paragraph(`${data.observations.filter(o => o.category === cat).length}`)] })]
                   }))
@@ -300,13 +340,13 @@
               })
             ];
 
-            const addObsToDoc = async (obs) => {
-              children.push(new Paragraph({ text: `Observation: ${obs.category}`, heading: HeadingLevel.HEADING_2, spacing: { before: 400 } }));
+            const addObsToDoc = async (obs, index) => {
+              children.push(new Paragraph({ text: `Observation #${index + 1}: ${obs.category}`, heading: HeadingLevel.HEADING_3, spacing: { before: 400, after: 200 } }));
               children.push(new Table({
                 width: { size: 100, type: WidthType.PERCENTAGE },
                 rows: [
                   ...[
-                    ["Asset Description", obs.assetName], ["Asset ID", obs.assetId || "N/A"], ["Risk", obs.risk], ["NC Count", `${obs.nonComplianceCount}`],
+                    ["Asset Description", obs.assetName], ["Asset ID", obs.assetId || "N/A"], ["Risk", obs.risk], ["Previously Seen", obs.previouslySeen], ["NC Count", `${obs.nonComplianceCount}`],
                     ["Notes", obs.notes || "None"], ["Short Term Fix", ""], ["Long Term Fix", ""], ["Report Feedback Findings", ""], ["Action Owner", ""]
                   ].map(r => new TableRow({ children: [new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r[0], bold: true })] })] }), new TableCell({ children: [new Paragraph(r[1])] })] }))
                 ]
@@ -315,26 +355,29 @@
                 const imgRuns = [];
                 for (const p of obs.photos) {
                   const uint8 = base64ToUint8Array(p);
-                  if (uint8) imgRuns.push(new ImageRun({ data: uint8, transformation: { width: 220, height: 160 } }));
+                  if (uint8) {
+                    imgRuns.push(new ImageRun({ data: uint8, transformation: { width: 220, height: 160 } }));
+                    imgRuns.push(new TextRun({ text: "  " }));
+                  }
                 }
                 children.push(new Paragraph({ children: imgRuns, spacing: { before: 200 } }));
               }
             };
 
-            for (const o of maintObs) await addObsToDoc(o);
+            for (let i = 0; i < maintObs.length; i++) await addObsToDoc(maintObs[i], i);
             if (nonMaintObs.length > 0) {
-              children.push(new Paragraph({ text: "Non-Maintenance Observations", heading: HeadingLevel.HEADING_1, spacing: { before: 800 } }));
-              for (const o of nonMaintObs) await addObsToDoc(o);
+              children.push(new Paragraph({ text: "Non-Maintenance Observations", heading: HeadingLevel.HEADING_2, spacing: { before: 800 } }));
+              for (let i = 0; i < nonMaintObs.length; i++) await addObsToDoc(nonMaintObs[i], maintObs.length + i);
             }
 
             const doc = new Document({ sections: [{ children }] });
             const blob = await Packer.toBlob(doc);
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
-            link.href = url; link.download = `${data.siteName}_Report.docx`;
+            link.href = url; link.download = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
             link.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-          } catch (e) { alert("Export Error: " + e.message); }
+          } catch (e) { alert("Export Error: " + e.message); console.error(e); }
           setIsExporting(false);
         };
 
@@ -350,7 +393,7 @@
           <div className="max-w-lg mx-auto w-full bg-slate-50 min-h-screen flex flex-col border-x">
             <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-10">
               <h1 className="text-lg font-bold">{data.siteName}</h1>
-              <p className="text-[10px] opacity-80 uppercase tracking-widest">{data.siteType} INSPECTION • {APP_VERSION}</p>
+              <p className="text-[10px] opacity-80 uppercase tracking-widest font-black">{data.siteType} INSPECTION • {APP_VERSION}</p>
             </header>
             <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
               {[AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS].map(cat => (
@@ -366,17 +409,17 @@
                        </button>
                        <button onClick={() => setData({ ...data, compliantCounts: { ...data.compliantCounts, [cat]: Math.max(0, data.compliantCounts[cat] - 1) } })} className="w-10 bg-green-100 text-green-700 flex items-center justify-center font-bold border-l border-green-200">-</button>
                     </div>
-                    <button onClick={() => { setActiveCategory(cat); setEditingObservation(null); setView('FORM'); }} className="flex-1 border border-red-200 text-red-600 py-3 rounded-xl font-bold text-sm bg-white">Log Issue</button>
+                    <button onClick={() => { setActiveCategory(cat); setEditingObservation(null); setView('FORM'); }} className="flex-1 border border-red-200 text-red-600 py-3 rounded-xl font-bold text-sm bg-white active:scale-95 transition-all">Log Issue</button>
                   </div>
                 </div>
               ))}
-              <button onClick={() => { setActiveCategory(AssetCategory.NON_MAINTENANCE); setEditingObservation(null); setView('FORM'); }} className="w-full bg-slate-800 text-white p-5 rounded-2xl flex justify-between items-center shadow-lg">
+              <button onClick={() => { setActiveCategory(AssetCategory.NON_MAINTENANCE); setEditingObservation(null); setView('FORM'); }} className="w-full bg-slate-800 text-white p-5 rounded-2xl flex justify-between items-center shadow-lg active:scale-[0.98] transition-all">
                 <div className="flex items-center gap-3"><Info size={20} className="text-blue-400"/> <span>Log Non-Maintenance Issue</span></div>
                 <ChevronRight size={20} />
               </button>
               {data.observations.length > 0 && (
                 <div className="space-y-2 mt-4">
-                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Recent Observations</h2>
+                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Recent Observations ({data.observations.length})</h2>
                   {data.observations.slice().reverse().map(obs => (
                     <div key={obs.id} className="bg-white p-3 rounded-xl border flex items-center justify-between shadow-sm">
                       <div className="text-sm truncate mr-2">
@@ -393,8 +436,8 @@
               )}
             </main>
             <footer className="p-4 bg-white border-t sticky bottom-0 z-10 safe-bottom">
-              <button onClick={handleExport} disabled={isExporting} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xl">
-                {isExporting ? <Loader2 className="animate-spin"/> : <ClipboardCheck/>} Complete & Export
+              <button onClick={handleExport} disabled={isExporting} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all disabled:opacity-50">
+                {isExporting ? <Loader2 className="animate-spin"/> : <ClipboardCheck/>} Complete & Export report
               </button>
             </footer>
           </div>
