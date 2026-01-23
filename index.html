@@ -1,79 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Industrial Asset Inspector</title>
-    
-    <!-- Visual Error Logger -->
-    <script>
-      window.onerror = function(msg, url, lineNo, columnNo, error) {
-        const debugDiv = document.createElement('div');
-        debugDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:#fee2e2;color:#991b1b;padding:20px;z-index:9999;font-family:monospace;font-size:12px;overflow:auto;max-height:50vh;border-bottom:2px solid #ef4444;';
-        debugDiv.innerHTML = '<strong>App Error Caught:</strong><br>' + msg + '<br><br>Line: ' + lineNo + '<br>File: ' + url;
-        document.body.appendChild(debugDiv);
-        return false;
-      };
-    </script>
-
-    <!-- Tailwind for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Polyfills for docx -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
-    <script>
-      window.Buffer = window.Buffer || Buffer.Buffer;
-      window.process = { env: { NODE_ENV: 'production' } };
-    </script>
-
-    <!-- Babel for on-the-fly TSX transpilation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script type="importmap">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f8fafc;
+        margin: 0;
+        padding: 0;
+      }
+      #error-display {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #fff;
+        color: #ef4444;
+        padding: 2rem;
+        z-index: 9999;
+        font-family: monospace;
+        overflow-y: auto;
+      }
+    </style>
+  <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client?external=react",
-    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
-    "docx": "https://esm.sh/docx@9.5.1?bundle",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "docx": "https://esm.sh/docx@^9.5.1",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
-
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
-        #root { min-height: 100vh; display: flex; flex-direction: column; }
-    </style>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body>
+  <body>
     <div id="root"></div>
-    <!-- 
-      This script tag handles the entire app. 
-      Babel will fetch App.tsx, transpile it, and run it.
-    -->
-    <script type="text/babel" data-presets="react,typescript" data-type="module">
-      import React from 'react';
-      import { createRoot } from 'react-dom/client';
-      import App from './App.tsx';
+    <div id="error-display">
+      <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Application Error</h1>
+      <pre id="error-content"></pre>
+      <p style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">Please copy this error and send it for diagnosis.</p>
+    </div>
 
-      try {
-        const container = document.getElementById('root');
-        if (container) {
-          const root = createRoot(container);
-          root.render(
-            <React.StrictMode>
-              <App />
-            </React.StrictMode>
-          );
-        }
-      } catch (err) {
-        console.error("Startup failed:", err);
-      }
+    <script>
+      // Global error logger to help debug GitHub Pages "White Screen"
+      window.onerror = function(msg, url, line, col, error) {
+        var display = document.getElementById('error-display');
+        var content = document.getElementById('error-content');
+        display.style.display = 'block';
+        content.textContent = [
+          'Message: ' + msg,
+          'URL: ' + url,
+          'Line: ' + line,
+          'Column: ' + col,
+          'Error object: ' + JSON.stringify(error)
+        ].join('\n');
+        return false;
+      };
     </script>
-<script type="module" src="/index.tsx"></script>
-</body>
+    
+    <!-- Vite entry point -->
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>
