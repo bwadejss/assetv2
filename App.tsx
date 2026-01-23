@@ -1,18 +1,15 @@
-
 import React, { useState, useRef } from 'react';
 import { 
-  ClipboardCheck, CloudUpload, Loader2, ShieldCheck, User, MapPin, Factory,
+  ClipboardCheck, ShieldCheck, User, MapPin, Factory,
   Settings, Info, Zap, Wind, AlertCircle, CheckCircle2, ChevronRight, Minus, 
-  Trash2, Edit2, Camera, ChevronLeft, Plus, Save, X, Image as ImageIcon
+  Trash2, Edit2, Camera, ChevronLeft, Plus, Save, X, Image as ImageIcon, Loader2
 } from 'lucide-react';
-import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { syncToExcel } from './services/sharepoint.ts';
-import { compressImage } from './services/imageResizer.ts';
+import * as docx from 'docx';
 
-// --- TYPES ---
-export enum SiteType { WTW = 'WTW', STW = 'STW' }
-export enum RiskLevel { LOW = 'Low', MED = 'Med', HI = 'Hi' }
-export enum AssetCategory {
+// --- TYPES & ENUMS ---
+enum SiteType { WTW = 'WTW', STW = 'STW' }
+enum RiskLevel { LOW = 'Low', MED = 'Med', HI = 'Hi' }
+enum AssetCategory {
   PUMPS = 'Pumps',
   MOTORS = 'Motors',
   COMPRESSORS = 'Compressors',
@@ -20,20 +17,18 @@ export enum AssetCategory {
   NON_MAINTENANCE = 'Non-Maintenance'
 }
 
-export interface Observation {
+interface Observation {
   id: string;
   category: AssetCategory;
   assetName: string;
   assetId?: string;
   risk: RiskLevel;
   nonComplianceCount: number;
-  previouslySeen: 'Yes' | 'No';
   notes: string;
   photos: string[];
-  timestamp: number;
 }
 
-export interface InspectionData {
+interface InspectionData {
   userName: string;
   siteName: string;
   siteType: SiteType;
@@ -42,294 +37,303 @@ export interface InspectionData {
   observations: Observation[];
 }
 
-export type AppView = 'SETUP' | 'DASHBOARD' | 'OBSERVATION_FORM';
+// --- UTILITIES ---
+const compressImage = (base64Str: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_SIZE = 1024;
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+      } else {
+        if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+      }
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(base64Str);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = () => resolve(base64Str);
+  });
+};
 
-export const calculateCompliance = (data: InspectionData) => {
+const base64ToUint8 = (base64: string): Uint8Array | null => {
+  try {
+    const parts = base64.split(';base64,');
+    if (parts.length < 2) return null;
+    const raw = window.atob(parts[1]);
+    const uInt8 = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; ++i) uInt8[i] = raw.charCodeAt(i);
+    return uInt8;
+  } catch (e) { return null; }
+};
+
+// --- DOC GENERATOR ---
+const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun } = docx;
+
+const generateReport = async (data: InspectionData) => {
+  const maintenanceObs = data.observations.filter(o => o.category !== AssetCategory.NON_MAINTENANCE);
+  const nonMaintenanceObs = data.observations.filter(o => o.category === AssetCategory.NON_MAINTENANCE);
+  
+  const totalNonMaintCount = nonMaintenanceObs.reduce((sum, o) => sum + o.nonComplianceCount, 0);
+  
   const categories = [AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS];
   let totalCompliant = 0;
-  let totalNC_Sum = 0;
-  let maintenanceAssetWithIssuesCount = 0;
+  categories.forEach(cat => totalCompliant += (data.compliantCounts[cat] || 0));
+  
+  const totalAssets = totalCompliant + maintenanceObs.length;
+  const compliancePercent = totalAssets === 0 ? 100 : Math.round((totalCompliant / totalAssets) * 100);
 
-  categories.forEach(cat => {
-    totalCompliant += (data.compliantCounts[cat] || 0);
-    const catObs = data.observations.filter(o => o.category === cat);
-    maintenanceAssetWithIssuesCount += catObs.length;
-    catObs.forEach(obs => {
-      totalNC_Sum += obs.nonComplianceCount;
-    });
+  const generateSimpleRow = (label: string, value: any) => new TableRow({
+    children: [
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: label, bold: true })] })], width: { size: 40, type: WidthType.PERCENTAGE } }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${value || ''}` })] })] }),
+    ]
   });
 
-  const totalAssetsChecked = totalCompliant + maintenanceAssetWithIssuesCount;
-  const siteIssueScore = totalAssetsChecked === 0 ? 0 : (totalNC_Sum / totalAssetsChecked).toFixed(3);
-  const compliancePercentage = totalAssetsChecked === 0 ? 100 : Math.round((totalCompliant / totalAssetsChecked) * 100);
-  
-  return { compliancePercentage, siteIssueScore, totalAssetsChecked, totalNC_Sum };
+  const children: any[] = [
+    new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "SITE INSPECTION REPORT", bold: true, size: 36 })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 400 }, children: [new TextRun({ text: `${data.siteName} - ${data.date}`, size: 24 })] }),
+    
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        generateSimpleRow("Inspector", data.userName),
+        generateSimpleRow("Site Name", data.siteName),
+        generateSimpleRow("Site Type", data.siteType),
+        generateSimpleRow("Date", data.date),
+        generateSimpleRow("Non-Maintenance Issue Count", totalNonMaintCount),
+        generateSimpleRow("Maintenance Compliance %", `${compliancePercent}%`),
+      ]
+    }),
+
+    new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 }, children: [new TextRun({ text: "Compliance Table", bold: true })] }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({ children: [
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Category", bold: true })] })] }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Compliant", bold: true })] })] }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Non-Compliant", bold: true })] })] }),
+        ]}),
+        ...categories.map(cat => new TableRow({ children: [
+          new TableCell({ children: [new Paragraph({ text: cat })] }),
+          new TableCell({ children: [new Paragraph({ text: `${data.compliantCounts[cat] || 0}` })] }),
+          new TableCell({ children: [new Paragraph({ text: `${maintenanceObs.filter(o => o.category === cat).length}` })] }),
+        ]}))
+      ]
+    })
+  ];
+
+  const addObsTable = async (obs: Observation) => {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, spacing: { before: 400, after: 100 }, children: [new TextRun({ text: `Observation: ${obs.assetName}`, bold: true })] }));
+    children.push(new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        generateSimpleRow("Asset Description", obs.assetName),
+        generateSimpleRow("Asset ID", obs.assetId || "N/A"),
+        generateSimpleRow("Risk Level", obs.risk),
+        generateSimpleRow("NC Count", obs.nonComplianceCount),
+        generateSimpleRow("Notes", obs.notes),
+        generateSimpleRow("Short Term Fix", ""),
+        generateSimpleRow("Long Term Fix", ""),
+        generateSimpleRow("Report Feedback Findings", ""),
+        generateSimpleRow("Action Owner", ""),
+      ]
+    }));
+    
+    if (obs.photos.length > 0) {
+      const photoNodes = [];
+      for (const p of obs.photos) {
+        const bytes = base64ToUint8(p);
+        // Fix: Cast ImageRun options to any to bypass docx library type inconsistencies between SvgMediaOptions and CoreImageOptions.
+        if (bytes) photoNodes.push(new ImageRun({ data: bytes, transformation: { width: 250, height: 180 } } as any));
+      }
+      children.push(new Paragraph({ children: photoNodes, spacing: { before: 200 } }));
+    }
+  };
+
+  if (maintenanceObs.length > 0) {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400 }, children: [new TextRun({ text: "Maintenance Observations", bold: true, underline: {} })] }));
+    for (const obs of maintenanceObs) await addObsTable(obs);
+  }
+
+  if (nonMaintenanceObs.length > 0) {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400 }, children: [new TextRun({ text: "Non-Maintenance Observations", bold: true, underline: {} })] }));
+    for (const obs of nonMaintenanceObs) await addObsTable(obs);
+  }
+
+  const doc = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${data.siteName}_Inspection_${data.date.replace(/\//g, '-')}.docx`;
+  a.click();
 };
 
 // --- COMPONENTS ---
 
-const SetupScreen = ({ onStart }) => {
-  const [userName, setUserName] = useState('');
-  const [siteName, setSiteName] = useState('');
-  const [siteType, setSiteType] = useState<SiteType>(SiteType.WTW);
-
-  return (
-    <div className="p-6 h-full flex flex-col justify-center min-h-[600px]">
-      <div className="mb-8 text-center">
-        <div className="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <ShieldCheck className="w-10 h-10 text-blue-600" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800">Site Inspector</h2>
-        <p className="text-slate-500">Configure your inspection details</p>
-      </div>
-
-      <form onSubmit={(e) => { e.preventDefault(); onStart(userName, siteName, siteType); }} className="space-y-6 flex-1 max-w-sm mx-auto w-full">
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <User className="w-4 h-4" /> Inspector Name
-          </label>
-          <input required type="text" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 outline-none transition-all text-slate-900" placeholder="e.g. John Smith" />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <MapPin className="w-4 h-4" /> Site Name
-          </label>
-          <input required type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 outline-none transition-all text-slate-900" placeholder="e.g. Riverside Station" />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <Factory className="w-4 h-4" /> Site Type
-          </label>
-          <select value={siteType} onChange={(e) => setSiteType(e.target.value as SiteType)} className="w-full p-3 rounded-xl border border-slate-300 bg-white outline-none transition-all text-slate-900">
-            <option value={SiteType.WTW}>Water Treatment Works (WTW)</option>
-            <option value={SiteType.STW}>Sewage Treatment Works (STW)</option>
-          </select>
-        </div>
-        <button type="submit" disabled={!userName || !siteName} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg">Start Inspection</button>
-      </form>
-    </div>
-  );
-};
-
-const Dashboard = ({ data, onUpdateCompliant, onOpenForm, onDeleteObservation }) => {
-  const categories = [AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS];
-  const META = {
-    [AssetCategory.PUMPS]: { icon: Wind, color: 'text-blue-600', bg: 'bg-blue-50' },
-    [AssetCategory.MOTORS]: { icon: Settings, color: 'text-purple-600', bg: 'bg-purple-50' },
-    [AssetCategory.COMPRESSORS]: { icon: Wind, color: 'text-green-600', bg: 'bg-green-50' },
-    [AssetCategory.ELECTRICAL_PANELS]: { icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50' },
-  };
-
-  return (
-    <div className="p-4 space-y-6">
-      <div className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-800 px-1">Asset Loggers</h2>
-        <div className="grid grid-cols-1 gap-4">
-          {categories.map(cat => {
-            // Fix: Extract properties to avoid complex property access in JSX tag, which is invalid syntax
-            const meta = META[cat];
-            const Icon = meta.icon;
-            return (
-              <div key={cat} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`${meta.bg} p-2 rounded-lg`}><Icon className={`w-5 h-5 ${meta.color}`} /></div>
-                  <h3 className="font-bold text-slate-800 flex-1">{cat}</h3>
-                  <div className="text-right">
-                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Issues</span>
-                    <span className="font-bold text-red-600">{data.observations.filter(o => o.category === cat).length}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1 flex gap-1 h-12">
-                    <button onClick={() => onUpdateCompliant(cat, 1)} className="flex-1 bg-green-600 text-white font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"><CheckCircle2 className="w-4 h-4" /> {data.compliantCounts[cat] || 0}</button>
-                    <button onClick={() => onUpdateCompliant(cat, -1)} className="w-12 bg-red-100 text-red-600 font-bold rounded-xl active:scale-95 flex items-center justify-center"><Minus className="w-4 h-4 stroke-[3px]" /></button>
-                  </div>
-                  <button onClick={() => onOpenForm(cat)} className="flex-1 bg-white border border-red-200 text-red-600 font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"><AlertCircle className="w-4 h-4" /> Log Issue</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <button onClick={() => onOpenForm(AssetCategory.NON_MAINTENANCE)} className="w-full bg-slate-800 text-white p-5 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-700 p-2 rounded-lg"><Info className="w-5 h-5" /></div>
-          <div className="text-left">
-            <div className="font-bold">Log Non-Maintenance Issue</div>
-            <div className="text-xs opacity-60">Site safety, signage, hygiene</div>
-          </div>
-        </div>
-        <ChevronRight className="w-5 h-5" />
-      </button>
-      {data.observations.length > 0 && (
-        <div className="space-y-3 pb-4">
-          <h2 className="text-lg font-bold text-slate-800 px-1">Logged Observations ({data.observations.length})</h2>
-          <div className="space-y-2">
-            {[...data.observations].reverse().map(obs => (
-              <div key={obs.id} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-3">
-                <div className="bg-red-50 p-2 rounded-lg"><AlertCircle className="w-4 h-4 text-red-600" /></div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-slate-400 uppercase truncate">{obs.category}</div>
-                  <div className="font-bold text-slate-800 truncate">{obs.assetName}</div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => onOpenForm(obs.category, obs)} className="p-2 bg-slate-100 rounded-lg text-slate-600"><Edit2 className="w-4 h-4" /></button>
-                  <button onClick={() => onDeleteObservation(obs.id)} className="p-2 bg-red-50 rounded-lg text-red-600"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const ObservationForm = ({ category, initialData, onSave, onBack }) => {
-  const [assetName, setAssetName] = useState(initialData?.assetName || '');
-  const [assetId, setAssetId] = useState(initialData?.assetId || '');
-  const [risk, setRisk] = useState<RiskLevel>(initialData?.risk || RiskLevel.LOW);
-  const [count, setCount] = useState(initialData?.nonComplianceCount || 1);
-  const [previouslySeen, setPreviouslySeen] = useState<'Yes' | 'No'>(initialData?.previouslySeen || 'No');
-  const [notes, setNotes] = useState(initialData?.notes || '');
-  const [photos, setPhotos] = useState<string[]>(initialData?.photos || []);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setIsProcessing(true);
-    for (const file of Array.from(files).slice(0, 10 - photos.length)) {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve) => { reader.onloadend = () => resolve(reader.result as string); reader.readAsDataURL(file); });
-      const optimized = await compressImage(base64);
-      setPhotos(prev => [...prev, optimized]);
-    }
-    setIsProcessing(false);
-    if (e.target) e.target.value = '';
-  };
-
-  return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 shadow-sm">
-        <button onClick={onBack} className="p-2 -ml-2 text-slate-500"><ChevronLeft className="w-6 h-6" /></button>
-        <h2 className="font-bold text-slate-900 truncate px-2 text-sm uppercase tracking-widest">{initialData ? 'Edit' : category}</h2>
-        <div className="w-10"></div>
-      </div>
-      <div className="p-6 space-y-6">
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Asset Name / Description *</label>
-          <input type="text" value={assetName} onChange={e => setAssetName(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 outline-none text-slate-900" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Asset ID</label>
-            <input type="text" value={assetId} onChange={e => setAssetId(e.target.value)} placeholder="Optional" className="w-full p-3 rounded-xl border border-slate-300 outline-none text-slate-900" />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Seen Prev?</label>
-            <select value={previouslySeen} onChange={e => setPreviouslySeen(e.target.value as 'Yes' | 'No')} className="w-full p-3 rounded-xl border border-slate-300 bg-white outline-none text-slate-900">
-              <option value="No">No</option>
-              <option value="Yes">Yes</option>
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Risk Level</label>
-            <select value={risk} onChange={e => setRisk(e.target.value as RiskLevel)} className="w-full p-3 rounded-xl border border-slate-300 bg-white outline-none text-slate-900">
-              <option value={RiskLevel.LOW}>Low</option>
-              <option value={RiskLevel.MED}>Medium</option>
-              <option value={RiskLevel.HI}>High</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">NC Count</label>
-            <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden h-[52px]">
-              <button onClick={() => setCount(Math.max(1, count - 1))} className="flex-1 h-full bg-red-50 text-red-600 flex items-center justify-center"><Minus className="w-5 h-5 stroke-[3px]" /></button>
-              <div className="w-14 text-center font-black text-xl text-slate-900 bg-white h-full flex items-center justify-center border-x">{count}</div>
-              <button onClick={() => setCount(count + 1)} className="flex-1 h-full bg-green-50 text-green-600 flex items-center justify-center"><Plus className="w-5 h-5 stroke-[3px]" /></button>
-            </div>
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Observation Notes</label>
-          <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 outline-none text-slate-900" />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Photos ({photos.length}/10)</label>
-          <div className="grid grid-cols-3 gap-3">
-            {photos.map((src, idx) => (
-              <div key={idx} className="aspect-square relative rounded-xl overflow-hidden border border-slate-200">
-                <img src={src} className="w-full h-full object-cover" />
-                <button onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full"><X className="w-3 h-3" /></button>
-              </div>
-            ))}
-            {photos.length < 10 && !isProcessing && (
-              <>
-                <button onClick={() => cameraInputRef.current?.click()} className="aspect-square border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 bg-slate-50"><Camera className="w-6 h-6 mb-1" /><span className="text-[10px] font-bold">CAMERA</span></button>
-                <button onClick={() => galleryInputRef.current?.click()} className="aspect-square border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 bg-slate-50"><ImageIcon className="w-6 h-6 mb-1" /><span className="text-[10px] font-bold">GALLERY</span></button>
-              </>
-            )}
-          </div>
-          <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
-          <input type="file" ref={galleryInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" />
-        </div>
-        <div className="pt-4 flex gap-3 pb-8">
-          <button onClick={onBack} className="flex-1 py-4 border border-slate-300 rounded-xl font-bold text-slate-600">Cancel</button>
-          <button onClick={() => { if (!assetName) return alert("Required field!"); onSave({ id: initialData?.id || crypto.randomUUID(), category, assetName, assetId, risk, nonComplianceCount: count, previouslySeen, notes, photos, timestamp: initialData?.timestamp || Date.now() }); }} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg"><Save className="w-5 h-5" /> Save</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- MAIN APP ---
-
 const App: React.FC = () => {
-  const [view, setView] = useState<AppView>('SETUP');
-  const [exporting, setExporting] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<AssetCategory>(AssetCategory.PUMPS);
-  const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
+  const [view, setView] = useState<'SETUP' | 'DASHBOARD' | 'FORM'>('SETUP');
   const [data, setData] = useState<InspectionData>({
     userName: '', siteName: '', siteType: SiteType.WTW, date: new Date().toLocaleDateString(),
     compliantCounts: {}, observations: []
   });
+  const [activeCategory, setActiveCategory] = useState<AssetCategory>(AssetCategory.PUMPS);
+  const [formLoading, setFormLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const handleStart = (userName, siteName, siteType) => {
-    setData(prev => ({ ...prev, userName, siteName, siteType, date: new Date().toLocaleDateString() }));
+  // Form State
+  const [formAsset, setFormAsset] = useState('');
+  const [formId, setFormId] = useState('');
+  const [formRisk, setFormRisk] = useState<RiskLevel>(RiskLevel.LOW);
+  const [formCount, setFormCount] = useState(1);
+  const [formNotes, setFormNotes] = useState('');
+  const [formPhotos, setFormPhotos] = useState<string[]>([]);
+
+  const handleStart = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (data.userName && data.siteName) setView('DASHBOARD');
+  };
+
+  const openForm = (cat: AssetCategory) => {
+    setActiveCategory(cat);
+    setFormAsset(''); setFormId(''); setFormRisk(RiskLevel.LOW);
+    setFormCount(1); setFormNotes(''); setFormPhotos([]);
+    setView('FORM');
+  };
+
+  const saveObservation = () => {
+    if (!formAsset) return alert("Asset name is required");
+    const newObs: Observation = {
+      id: crypto.randomUUID(), category: activeCategory, assetName: formAsset,
+      assetId: formId, risk: formRisk, nonComplianceCount: formCount,
+      notes: formNotes, photos: formPhotos
+    };
+    setData(prev => ({ ...prev, observations: [...prev.observations, newObs] }));
     setView('DASHBOARD');
   };
 
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      await generateInspectionWordDoc(data);
-      alert("Report Exported! Site data cleared.");
-      window.location.reload();
-    } catch (e) { alert("Export failed"); }
-    setExporting(false);
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    setFormLoading(true);
+    for (const file of Array.from(files)) {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((res) => {
+        reader.onloadend = () => res(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      const optimized = await compressImage(base64);
+      setFormPhotos(prev => [...prev, optimized]);
+    }
+    setFormLoading(false);
   };
 
+  if (view === 'SETUP') return (
+    <div className="p-6 h-full flex flex-col justify-center max-w-sm mx-auto">
+      <div className="mb-8 text-center">
+        <ShieldCheck className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold">Inspection Setup</h2>
+      </div>
+      <form onSubmit={handleStart} className="space-y-4">
+        <div><label className="block text-sm font-bold mb-1">Inspector Name</label><input required className="w-full p-3 border rounded-xl" value={data.userName} onChange={e => setData(d => ({ ...d, userName: e.target.value }))} /></div>
+        <div><label className="block text-sm font-bold mb-1">Site Name</label><input required className="w-full p-3 border rounded-xl" value={data.siteName} onChange={e => setData(d => ({ ...d, siteName: e.target.value }))} /></div>
+        <div><label className="block text-sm font-bold mb-1">Site Type</label>
+          <select className="w-full p-3 border rounded-xl" value={data.siteType} onChange={e => setData(d => ({ ...d, siteType: e.target.value as SiteType }))}>
+            <option value={SiteType.WTW}>WTW</option>
+            <option value={SiteType.STW}>STW</option>
+          </select>
+        </div>
+        <button className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold">Start Inspection</button>
+      </form>
+    </div>
+  );
+
+  if (view === 'FORM') return (
+    <div className="flex flex-col h-full bg-white max-w-lg mx-auto w-full">
+      <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
+        <button onClick={() => setView('DASHBOARD')} className="p-2"><ChevronLeft /></button>
+        <h2 className="font-bold">{activeCategory} Form</h2>
+        <div className="w-8"></div>
+      </div>
+      <div className="p-6 space-y-5 overflow-y-auto flex-1">
+        <div><label className="block text-sm font-bold mb-1">Asset Name / Description *</label><input className="w-full p-3 border rounded-xl" value={formAsset} onChange={e => setFormAsset(e.target.value)} /></div>
+        <div><label className="block text-sm font-bold mb-1">Asset ID (Optional)</label><input className="w-full p-3 border rounded-xl" value={formId} onChange={e => setFormId(e.target.value)} /></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><label className="block text-sm font-bold mb-1">Risk</label>
+            <select className="w-full p-3 border rounded-xl" value={formRisk} onChange={e => setFormRisk(e.target.value as RiskLevel)}>
+              <option value={RiskLevel.LOW}>Low</option><option value={RiskLevel.MED}>Med</option><option value={RiskLevel.HI}>Hi</option>
+            </select>
+          </div>
+          <div><label className="block text-sm font-bold mb-1">NC Count</label>
+            <div className="flex border rounded-xl overflow-hidden h-12">
+              <button onClick={() => setFormCount(Math.max(0, formCount - 1))} className="flex-1 bg-slate-50 border-r">-1</button>
+              <div className="w-12 flex items-center justify-center font-bold">{formCount}</div>
+              <button onClick={() => setFormCount(formCount + 1)} className="flex-1 bg-slate-50 border-l">+1</button>
+            </div>
+          </div>
+        </div>
+        <div><label className="block text-sm font-bold mb-1">Notes</label><textarea className="w-full p-3 border rounded-xl" value={formNotes} onChange={e => setFormNotes(e.target.value)} /></div>
+        <div><label className="block text-sm font-bold mb-1">Photos ({formPhotos.length})</label>
+          <div className="grid grid-cols-4 gap-2 mt-2">
+            {formPhotos.map((p, idx) => (
+              <div key={idx} className="aspect-square relative"><img src={p} className="w-full h-full object-cover rounded-lg border" /><button onClick={() => setFormPhotos(prev => prev.filter((_, i) => i !== idx))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3"/></button></div>
+            ))}
+            <label className="aspect-square border-2 border-dashed rounded-lg flex items-center justify-center cursor-pointer">
+              {formLoading ? <Loader2 className="animate-spin" /> : <Camera />}
+              <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhoto} />
+            </label>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 border-t flex gap-2">
+        <button onClick={() => setView('DASHBOARD')} className="flex-1 p-4 border rounded-xl font-bold">Back</button>
+        <button onClick={() => { setFormAsset(''); setFormId(''); setFormNotes(''); setFormPhotos([]); }} className="flex-1 p-4 bg-slate-100 rounded-xl font-bold">Clear</button>
+        <button onClick={saveObservation} className="flex-1 p-4 bg-blue-600 text-white rounded-xl font-bold">Save</button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen flex flex-col max-w-lg mx-auto bg-slate-50 shadow-xl overflow-hidden relative border-x border-slate-200">
-      {view !== 'SETUP' && (
-        <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-20 flex justify-between items-center">
-          <div><h1 className="text-lg font-bold">{data.siteName}</h1><p className="text-[10px] opacity-80 uppercase font-black">{data.siteType} Inspection</p></div>
-          <button onClick={async () => { setSyncing(true); const r = await syncToExcel(data); setSyncing(false); alert(r.message); }} className="bg-blue-600 p-2 rounded-lg"><CloudUpload className={`w-5 h-5 ${syncing ? 'animate-pulse' : ''}`} /></button>
-        </header>
-      )}
-      <main className="flex-1 overflow-y-auto pb-20">
-        {view === 'SETUP' && <SetupScreen onStart={handleStart} />}
-        {view === 'DASHBOARD' && <Dashboard data={data} onUpdateCompliant={(cat, delta) => setData(p => ({ ...p, compliantCounts: { ...p.compliantCounts, [cat]: Math.max(0, (p.compliantCounts[cat] || 0) + delta) } }))} onOpenForm={(cat, obs) => { setActiveCategory(cat); setEditingObservation(obs || null); setView('OBSERVATION_FORM'); }} onDeleteObservation={id => setData(p => ({ ...p, observations: p.observations.filter(o => o.id !== id) }))} />}
-        {view === 'OBSERVATION_FORM' && <ObservationForm category={activeCategory} initialData={editingObservation} onBack={() => setView('DASHBOARD')} onSave={obs => { setData(p => { const isEdit = p.observations.find(o => o.id === obs.id); return { ...p, observations: isEdit ? p.observations.map(o => o.id === obs.id ? obs : o) : [...p.observations, obs] }; }); setView('DASHBOARD'); }} />}
-      </main>
-      {view === 'DASHBOARD' && (
-        <div className="bg-white border-t p-4 sticky bottom-0"><button onClick={handleExport} disabled={exporting} className="w-full bg-green-600 text-white py-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md">{exporting ? <Loader2 className="animate-spin" /> : <ClipboardCheck />} Complete Visit & Export</button></div>
-      )}
+    <div className="max-w-lg mx-auto w-full bg-slate-50 h-screen flex flex-col">
+      <header className="p-4 bg-blue-700 text-white shadow-lg">
+        <h1 className="font-bold">{data.siteName}</h1>
+        <p className="text-xs opacity-75">{data.userName} • {data.date}</p>
+      </header>
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="space-y-3">
+          <h2 className="font-bold text-slate-700">Maintenance Categories</h2>
+          {[AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS].map(cat => (
+            <div key={cat} className="bg-white p-4 rounded-2xl shadow-sm border flex items-center gap-3">
+              <div className="flex-1">
+                <div className="font-bold">{cat}</div>
+                <div className="text-xs text-slate-500">Compliant: {data.compliantCounts[cat] || 0} | Issues: {data.observations.filter(o => o.category === cat).length}</div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setData(d => ({ ...d, compliantCounts: { ...d.compliantCounts, [cat]: (d.compliantCounts[cat] || 0) + 1 } }))} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold">Compliant +1</button>
+                <button onClick={() => openForm(cat)} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm font-bold">Log Issue</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button onClick={() => openForm(AssetCategory.NON_MAINTENANCE)} className="w-full p-4 bg-slate-800 text-white rounded-2xl flex justify-between items-center font-bold">
+          <span>Log Non-Maintenance Issue</span>
+          <ChevronRight />
+        </button>
+      </div>
+      <div className="p-4 bg-white border-t">
+        <button onClick={async () => { setExporting(true); await generateReport(data); setExporting(false); }} disabled={exporting} className="w-full bg-green-600 text-white p-4 rounded-xl font-bold flex items-center justify-center gap-2">
+          {exporting ? <Loader2 className="animate-spin"/> : <ClipboardCheck />}
+          Complete Visit & Export
+        </button>
+      </div>
     </div>
   );
 };

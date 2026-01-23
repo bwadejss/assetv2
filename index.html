@@ -1,14 +1,25 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Industrial Asset Inspector</title>
+    
+    <!-- Visual Error Logger: If the app fails to load, this will show the error on screen -->
+    <script>
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        const debugDiv = document.createElement('div');
+        debugDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:#fee2e2;color:#991b1b;padding:20px;z-index:9999;font-family:monospace;font-size:12px;overflow:auto;max-height:50vh;border-bottom:2px solid #ef4444;';
+        debugDiv.innerHTML = '<strong>App Error Caught:</strong><br>' + msg + '<br><br>Line: ' + lineNo + '<br>File: ' + url;
+        document.body.appendChild(debugDiv);
+        return false;
+      };
+    </script>
+
     <!-- Tailwind for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Polyfills for docx (Fixes the White Screen) -->
+    <!-- Polyfills for docx -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
     <script>
       window.Buffer = window.Buffer || Buffer.Buffer;
@@ -46,14 +57,18 @@
       import { createRoot } from 'react-dom/client';
       import App from './App.tsx';
 
-      const container = document.getElementById('root');
-      if (container) {
-        const root = createRoot(container);
-        root.render(
-          <React.StrictMode>
-            <App />
-          </React.StrictMode>
-        );
+      try {
+        const container = document.getElementById('root');
+        if (container) {
+          const root = createRoot(container);
+          root.render(
+            <React.StrictMode>
+              <App />
+            </React.StrictMode>
+          );
+        }
+      } catch (err) {
+        console.error("Startup failed:", err);
       }
     </script>
 <script type="module" src="/index.tsx"></script>
