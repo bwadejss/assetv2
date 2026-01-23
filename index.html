@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Industrial Asset Inspector</title>
     
-    <!-- Visual Error Logger: If the app fails to load, this will show the error on screen -->
+    <!-- Visual Error Logger -->
     <script>
       window.onerror = function(msg, url, lineNo, columnNo, error) {
         const debugDiv = document.createElement('div');
@@ -37,7 +37,6 @@
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client?external=react",
     "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
     "docx": "https://esm.sh/docx@9.5.1?bundle",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
@@ -52,6 +51,10 @@
 </head>
 <body>
     <div id="root"></div>
+    <!-- 
+      This script tag handles the entire app. 
+      Babel will fetch App.tsx, transpile it, and run it.
+    -->
     <script type="text/babel" data-presets="react,typescript" data-type="module">
       import React from 'react';
       import { createRoot } from 'react-dom/client';
