@@ -1,41 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Industrial Asset Inspector</title>
+    
+    <!-- Visual Error Logger -->
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        var display = document.getElementById('error-display');
+        var content = document.getElementById('error-content');
+        if (display && content) {
+          display.style.display = 'block';
+          content.textContent = [
+            'Message: ' + msg,
+            'URL: ' + url,
+            'Line: ' + line,
+            'Column: ' + col,
+            'Error: ' + (error ? error.stack : 'No stack trace')
+          ].join('\n');
+        }
+        return false;
+      };
+    </script>
+
+    <!-- External Styles & Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    
     <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f8fafc;
-        margin: 0;
-        padding: 0;
-      }
+      body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
       #error-display {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: #fff;
-        color: #ef4444;
-        padding: 2rem;
-        z-index: 9999;
-        font-family: monospace;
-        overflow-y: auto;
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: #fff; color: #ef4444; padding: 2rem; z-index: 9999;
+        font-family: monospace; overflow-y: auto;
       }
+      .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
-  <script type="importmap">
+
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client?external=react",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
+    "docx": "https://esm.sh/docx@9.5.1?bundle",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "docx": "https://esm.sh/docx@^9.5.1",
     "vite": "https://esm.sh/vite@^7.3.1",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
@@ -43,32 +56,357 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body>
+<body>
     <div id="root"></div>
     <div id="error-display">
       <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Application Error</h1>
-      <pre id="error-content"></pre>
-      <p style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">Please copy this error and send it for diagnosis.</p>
+      <pre id="error-content" style="white-space: pre-wrap;"></pre>
+      <button onclick="location.reload()" style="margin-top: 1rem; background: #3b82f6; color: white; padding: 0.5rem 1rem; rounded: 0.5rem;">Reload App</button>
     </div>
 
-    <script>
-      // Global error logger to help debug GitHub Pages "White Screen"
-      window.onerror = function(msg, url, line, col, error) {
-        var display = document.getElementById('error-display');
-        var content = document.getElementById('error-content');
-        display.style.display = 'block';
-        content.textContent = [
-          'Message: ' + msg,
-          'URL: ' + url,
-          'Line: ' + line,
-          'Column: ' + col,
-          'Error object: ' + JSON.stringify(error)
-        ].join('\n');
-        return false;
+    <script type="text/babel" data-presets="react,typescript" data-type="module">
+      import React, { useState, useRef, useEffect } from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { 
+        ShieldCheck, User, MapPin, Factory, Settings, Info, Zap, Wind, 
+        AlertCircle, CheckCircle2, ChevronRight, Minus, Trash2, Edit2,
+        ClipboardCheck, CloudUpload, Loader2, Camera, ChevronLeft, Save, X, Image as ImageIcon, Plus
+      } from 'lucide-react';
+      import * as docx from 'docx';
+
+      // --- TYPES & CONSTANTS ---
+      const APP_VERSION = "v1.4.6-stable";
+      const SiteType = { WTW: 'WTW', STW: 'STW' };
+      const RiskLevel = { LOW: 'Low', MED: 'Med', HI: 'Hi' };
+      const AssetCategory = {
+        PUMPS: 'Pumps',
+        MOTORS: 'Motors',
+        COMPRESSORS: 'Compressors',
+        ELECTRICAL_PANELS: 'Electrical Panels',
+        NON_MAINTENANCE: 'Non-Maintenance'
       };
+
+      // --- SERVICES ---
+      const compressImage = (base64Str, maxWidth = 1024, maxHeight = 1024, quality = 0.7) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.src = base64Str;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width, height = img.height;
+            if (width > height) {
+              if (width > maxWidth) { height *= maxWidth / width; width = maxWidth; }
+            } else {
+              if (height > maxHeight) { width *= maxHeight / height; height = maxHeight; }
+            }
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return resolve(base64Str);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = () => resolve(base64Str);
+        });
+      };
+
+      const calculateCompliance = (data) => {
+        const categories = [AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS];
+        let totalCompliant = 0, totalNC_Sum = 0, maintenanceAssetWithIssuesCount = 0;
+
+        categories.forEach(cat => {
+          totalCompliant += (data.compliantCounts[cat] || 0);
+          const catObs = data.observations.filter(o => o.category === cat);
+          maintenanceAssetWithIssuesCount += catObs.length;
+          catObs.forEach(obs => { totalNC_Sum += obs.nonComplianceCount; });
+        });
+
+        const totalAssetsChecked = totalCompliant + maintenanceAssetWithIssuesCount;
+        const siteIssueScore = totalAssetsChecked === 0 ? 0 : (totalNC_Sum / totalAssetsChecked).toFixed(3);
+        const compliancePercentage = totalAssetsChecked === 0 ? 100 : Math.round((totalCompliant / totalAssetsChecked) * 100);
+        
+        return { compliancePercentage, siteIssueScore, totalAssetsChecked, totalNC_Sum };
+      };
+
+      function base64ToUint8Array(base64) {
+        try {
+          if (!base64 || !base64.includes('base64,')) return null;
+          const parts = base64.split(';base64,');
+          const raw = window.atob(parts[1]);
+          const uInt8Array = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; ++i) uInt8Array[i] = raw.charCodeAt(i);
+          return uInt8Array;
+        } catch (e) { return null; }
+      }
+
+      // --- COMPONENTS ---
+      const SetupScreen = ({ onStart }) => {
+        const [userName, setUserName] = useState('');
+        const [siteName, setSiteName] = useState('');
+        const [siteType, setSiteType] = useState(SiteType.WTW);
+
+        return (
+          <div className="p-6 h-full flex flex-col justify-center min-h-[600px] max-w-sm mx-auto w-full">
+            <div className="mb-8 text-center">
+              <div className="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <ShieldCheck className="w-10 h-10 text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-800">Site Inspector</h2>
+              <p className="text-slate-500">Configure your inspection details</p>
+            </div>
+            <div className="space-y-4">
+              <input placeholder="Inspector Name" className="w-full p-4 rounded-xl border border-slate-300" value={userName} onChange={e => setUserName(e.target.value)} />
+              <input placeholder="Site Name" className="w-full p-4 rounded-xl border border-slate-300" value={siteName} onChange={e => setSiteName(e.target.value)} />
+              <select className="w-full p-4 rounded-xl border border-slate-300 bg-white" value={siteType} onChange={e => setSiteType(e.target.value)}>
+                <option value={SiteType.WTW}>Water Treatment Works (WTW)</option>
+                <option value={SiteType.STW}>Sewage Treatment Works (STW)</option>
+              </select>
+              <button disabled={!userName || !siteName} onClick={() => onStart(userName, siteName, siteType)} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg disabled:opacity-50">Start Inspection</button>
+            </div>
+          </div>
+        );
+      };
+
+      const ObservationForm = ({ category, initialData, onSave, onBack }) => {
+        const [assetName, setAssetName] = useState(initialData?.assetName || '');
+        const [assetId, setAssetId] = useState(initialData?.assetId || '');
+        const [risk, setRisk] = useState(initialData?.risk || RiskLevel.LOW);
+        const [count, setCount] = useState(initialData?.nonComplianceCount || 1);
+        const [previouslySeen, setPreviouslySeen] = useState(initialData?.previouslySeen || 'No');
+        const [notes, setNotes] = useState(initialData?.notes || '');
+        const [photos, setPhotos] = useState(initialData?.photos || []);
+        const [isProcessing, setIsProcessing] = useState(false);
+        const fileInputRef = useRef(null);
+        const cameraInputRef = useRef(null);
+
+        const handleFile = async (e) => {
+          const files = e.target.files;
+          if (!files) return;
+          setIsProcessing(true);
+          for (const file of Array.from(files).slice(0, 10 - photos.length)) {
+            const reader = new FileReader();
+            const base64 = await new Promise(res => { reader.onload = () => res(reader.result); reader.readAsDataURL(file); });
+            const optimized = await compressImage(base64);
+            setPhotos(prev => [...prev, optimized]);
+          }
+          setIsProcessing(false);
+          if(e.target) e.target.value = '';
+        };
+
+        return (
+          <div className="flex flex-col h-full bg-white max-w-lg mx-auto w-full border-x">
+            <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
+              <button onClick={onBack}><ChevronLeft className="w-6 h-6" /></button>
+              <h2 className="font-bold uppercase tracking-widest text-xs">{category} Issue</h2>
+              <div className="w-6"></div>
+            </div>
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              <div><label className="block text-sm font-bold mb-1">Asset Name / Description *</label><input className="w-full p-3 border rounded-xl" value={assetName} onChange={e => setAssetName(e.target.value)} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-bold mb-1">Asset ID</label><input className="w-full p-3 border rounded-xl" value={assetId} onChange={e => setAssetId(e.target.value)} /></div>
+                <div><label className="block text-sm font-bold mb-1">Seen Prev?</label>
+                  <select className="w-full p-3 border rounded-xl bg-white" value={previouslySeen} onChange={e => setPreviouslySeen(e.target.value)}>
+                    <option value="No">No</option><option value="Yes">Yes</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-bold mb-1">Risk Level</label>
+                  <select className="w-full p-3 border rounded-xl bg-white" value={risk} onChange={e => setRisk(e.target.value)}>
+                    <option value={RiskLevel.LOW}>Low</option><option value={RiskLevel.MED}>Medium</option><option value={RiskLevel.HI}>High</option>
+                  </select>
+                </div>
+                <div><label className="block text-sm font-bold mb-1">NC Count</label>
+                  <div className="flex border rounded-xl overflow-hidden h-[52px]">
+                    <button onClick={() => setCount(Math.max(1, count - 1))} className="flex-1 bg-red-50 text-red-600 font-bold">-</button>
+                    <div className="w-12 flex items-center justify-center font-bold text-lg">{count}</div>
+                    <button onClick={() => setCount(count + 1)} className="flex-1 bg-green-50 text-green-600 font-bold">+</button>
+                  </div>
+                </div>
+              </div>
+              <div><label className="block text-sm font-bold mb-1">Notes</label><textarea className="w-full p-3 border rounded-xl h-24" value={notes} onChange={e => setNotes(e.target.value)} /></div>
+              <div>
+                <label className="block text-sm font-bold mb-1">Photos ({photos.length}/10)</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {photos.map((p, idx) => (
+                    <div key={idx} className="aspect-square relative rounded-xl overflow-hidden border">
+                      <img src={p} className="w-full h-full object-cover" />
+                      <button onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full"><X size={12}/></button>
+                    </div>
+                  ))}
+                  {photos.length < 10 && (
+                    <>
+                    <button onClick={() => cameraInputRef.current.click()} className="aspect-square border-2 border-dashed flex flex-col items-center justify-center bg-slate-50">
+                      {isProcessing ? <Loader2 className="animate-spin text-blue-600" /> : <Camera className="text-slate-400" />}
+                      <span className="text-[10px] font-bold mt-1 uppercase text-slate-400">Camera</span>
+                    </button>
+                    <button onClick={() => fileInputRef.current.click()} className="aspect-square border-2 border-dashed flex flex-col items-center justify-center bg-slate-50">
+                      <ImageIcon className="text-slate-400" />
+                      <span className="text-[10px] font-bold mt-1 uppercase text-slate-400">Gallery</span>
+                    </button>
+                    </>
+                  )}
+                </div>
+                <input type="file" ref={cameraInputRef} onChange={handleFile} accept="image/*" capture="environment" className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleFile} accept="image/*" className="hidden" multiple />
+              </div>
+            </div>
+            <div className="p-4 border-t flex gap-2 safe-bottom">
+              <button onClick={onBack} className="flex-1 py-4 border rounded-xl font-bold text-slate-500">Cancel</button>
+              <button onClick={() => {
+                if(!assetName) return alert("Name is required");
+                onSave({ id: initialData?.id || crypto.randomUUID(), category, assetName, assetId, risk, nonComplianceCount: count, previouslySeen, notes, photos, timestamp: Date.now() });
+              }} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold">Save</button>
+            </div>
+          </div>
+        );
+      };
+
+      const App = () => {
+        const [view, setView] = useState('SETUP');
+        const [data, setData] = useState({
+          userName: '', siteName: '', siteType: SiteType.WTW, date: new Date().toLocaleDateString(),
+          compliantCounts: { [AssetCategory.PUMPS]: 0, [AssetCategory.MOTORS]: 0, [AssetCategory.COMPRESSORS]: 0, [AssetCategory.ELECTRICAL_PANELS]: 0 },
+          observations: []
+        });
+        const [activeCategory, setActiveCategory] = useState(AssetCategory.PUMPS);
+        const [editingObservation, setEditingObservation] = useState(null);
+        const [isExporting, setIsExporting] = useState(false);
+
+        const handleExport = async () => {
+          setIsExporting(true);
+          try {
+            const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun } = docx;
+            const stats = calculateCompliance(data);
+            const maintObs = data.observations.filter(o => o.category !== AssetCategory.NON_MAINTENANCE);
+            const nonMaintObs = data.observations.filter(o => o.category === AssetCategory.NON_MAINTENANCE);
+            const totalNonMaintNC = nonMaintObs.reduce((s, o) => s + o.nonComplianceCount, 0);
+
+            const children = [
+              new Paragraph({ text: "SITE INSPECTION REPORT", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
+              new Paragraph({ children: [
+                new TextRun({ text: `Inspector: ${data.userName}\tSite: ${data.siteName} (${data.siteType})\tDate: ${data.date}`, bold: true })
+              ] }),
+              new Paragraph({ text: `Non-Maintenance Issue Count: ${totalNonMaintNC}`, spacing: { before: 200 } }),
+              new Paragraph({ text: `Compliance Rating: ${stats.compliancePercentage}%`, bold: true }),
+              new Paragraph({ text: `Site Issue Score: ${stats.siteIssueScore}`, spacing: { after: 200 } }),
+              new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                  new TableRow({ children: [new TableCell({ children: [new Paragraph("Category")], shading: { fill: "F2F2F2" } }), new TableCell({ children: [new Paragraph("Compliant")], shading: { fill: "F2F2F2" } }), new TableCell({ children: [new Paragraph("Non-Compliant")], shading: { fill: "F2F2F2" } })] }),
+                  ...Object.keys(data.compliantCounts).map(cat => new TableRow({
+                    children: [new TableCell({ children: [new Paragraph(cat)] }), new TableCell({ children: [new Paragraph(`${data.compliantCounts[cat]}`)] }), new TableCell({ children: [new Paragraph(`${data.observations.filter(o => o.category === cat).length}`)] })]
+                  }))
+                ]
+              })
+            ];
+
+            const addObsToDoc = async (obs) => {
+              children.push(new Paragraph({ text: `Observation: ${obs.category}`, heading: HeadingLevel.HEADING_2, spacing: { before: 400 } }));
+              children.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                  ...[
+                    ["Asset Description", obs.assetName], ["Asset ID", obs.assetId || "N/A"], ["Risk", obs.risk], ["NC Count", `${obs.nonComplianceCount}`],
+                    ["Notes", obs.notes || "None"], ["Short Term Fix", ""], ["Long Term Fix", ""], ["Report Feedback Findings", ""], ["Action Owner", ""]
+                  ].map(r => new TableRow({ children: [new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r[0], bold: true })] })] }), new TableCell({ children: [new Paragraph(r[1])] })] }))
+                ]
+              }));
+              if (obs.photos.length > 0) {
+                const imgRuns = [];
+                for (const p of obs.photos) {
+                  const uint8 = base64ToUint8Array(p);
+                  if (uint8) imgRuns.push(new ImageRun({ data: uint8, transformation: { width: 220, height: 160 } }));
+                }
+                children.push(new Paragraph({ children: imgRuns, spacing: { before: 200 } }));
+              }
+            };
+
+            for (const o of maintObs) await addObsToDoc(o);
+            if (nonMaintObs.length > 0) {
+              children.push(new Paragraph({ text: "Non-Maintenance Observations", heading: HeadingLevel.HEADING_1, spacing: { before: 800 } }));
+              for (const o of nonMaintObs) await addObsToDoc(o);
+            }
+
+            const doc = new Document({ sections: [{ children }] });
+            const blob = await Packer.toBlob(doc);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url; link.download = `${data.siteName}_Report.docx`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          } catch (e) { alert("Export Error: " + e.message); }
+          setIsExporting(false);
+        };
+
+        if (view === 'SETUP') return <SetupScreen onStart={(u, s, t) => { setData({ ...data, userName: u, siteName: s, siteType: t }); setView('DASHBOARD'); }} />;
+        
+        if (view === 'FORM') return <ObservationForm category={activeCategory} initialData={editingObservation} onBack={() => setView('DASHBOARD')} onSave={(obs) => {
+          const isEdit = data.observations.find(o => o.id === obs.id);
+          setData({ ...data, observations: isEdit ? data.observations.map(o => o.id === obs.id ? obs : o) : [...data.observations, obs] });
+          setView('DASHBOARD');
+        }} />;
+
+        return (
+          <div className="max-w-lg mx-auto w-full bg-slate-50 min-h-screen flex flex-col border-x">
+            <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-10">
+              <h1 className="text-lg font-bold">{data.siteName}</h1>
+              <p className="text-[10px] opacity-80 uppercase tracking-widest">{data.siteType} INSPECTION • {APP_VERSION}</p>
+            </header>
+            <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
+              {[AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS].map(cat => (
+                <div key={cat} className="bg-white p-4 rounded-2xl border shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-slate-800">{cat}</h3>
+                    <div className="text-xs font-bold text-red-500">{data.observations.filter(o => o.category === cat).length} NC Issues</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1 flex gap-1 bg-green-50 rounded-xl overflow-hidden border border-green-100">
+                       <button onClick={() => setData({ ...data, compliantCounts: { ...data.compliantCounts, [cat]: data.compliantCounts[cat] + 1 } })} className="flex-1 text-green-700 py-3 font-bold text-sm flex items-center justify-center gap-2">
+                         <CheckCircle2 size={16}/> {data.compliantCounts[cat]}
+                       </button>
+                       <button onClick={() => setData({ ...data, compliantCounts: { ...data.compliantCounts, [cat]: Math.max(0, data.compliantCounts[cat] - 1) } })} className="w-10 bg-green-100 text-green-700 flex items-center justify-center font-bold border-l border-green-200">-</button>
+                    </div>
+                    <button onClick={() => { setActiveCategory(cat); setEditingObservation(null); setView('FORM'); }} className="flex-1 border border-red-200 text-red-600 py-3 rounded-xl font-bold text-sm bg-white">Log Issue</button>
+                  </div>
+                </div>
+              ))}
+              <button onClick={() => { setActiveCategory(AssetCategory.NON_MAINTENANCE); setEditingObservation(null); setView('FORM'); }} className="w-full bg-slate-800 text-white p-5 rounded-2xl flex justify-between items-center shadow-lg">
+                <div className="flex items-center gap-3"><Info size={20} className="text-blue-400"/> <span>Log Non-Maintenance Issue</span></div>
+                <ChevronRight size={20} />
+              </button>
+              {data.observations.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Recent Observations</h2>
+                  {data.observations.slice().reverse().map(obs => (
+                    <div key={obs.id} className="bg-white p-3 rounded-xl border flex items-center justify-between shadow-sm">
+                      <div className="text-sm truncate mr-2">
+                        <div className="font-bold text-slate-800 truncate">{obs.assetName}</div>
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">{obs.category}</div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => { setEditingObservation(obs); setActiveCategory(obs.category); setView('FORM'); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Edit2 size={14}/></button>
+                        <button onClick={() => { if(confirm("Delete?")) setData({ ...data, observations: data.observations.filter(o => o.id !== obs.id) }); }} className="p-2 bg-red-50 text-red-600 rounded-lg"><Trash2 size={14}/></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </main>
+            <footer className="p-4 bg-white border-t sticky bottom-0 z-10 safe-bottom">
+              <button onClick={handleExport} disabled={isExporting} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xl">
+                {isExporting ? <Loader2 className="animate-spin"/> : <ClipboardCheck/>} Complete & Export
+              </button>
+            </footer>
+          </div>
+        );
+      };
+
+      const container = document.getElementById('root');
+      if (container) {
+        const root = createRoot(container);
+        root.render(<App />);
+      }
     </script>
-    
-    <!-- Vite entry point -->
-    <script type="module" src="/index.tsx"></script>
-  </body>
+<script type="module" src="/index.tsx"></script>
+</body>
 </html>
