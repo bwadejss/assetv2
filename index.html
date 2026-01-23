@@ -8,7 +8,14 @@
     <!-- Tailwind for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Babel for on-the-fly TSX transpilation (Fixes the White Screen) -->
+    <!-- Polyfills for docx (Fixes the White Screen) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
+    <script>
+      window.Buffer = window.Buffer || Buffer.Buffer;
+      window.process = { env: { NODE_ENV: 'production' } };
+    </script>
+
+    <!-- Babel for on-the-fly TSX transpilation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="importmap">
@@ -18,7 +25,7 @@
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client?external=react",
     "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
-    "docx": "https://esm.sh/docx@9.5.1",
+    "docx": "https://esm.sh/docx@9.5.1?bundle",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/"
   }
@@ -34,11 +41,7 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- 
-      Using type="text/babel" and data-type="module" allows Babel to 
-      transpile your TSX imports directly in the browser.
-    -->
-    <script type="text/babel" data-type="module">
+    <script type="text/babel" data-presets="react,typescript" data-type="module">
       import React from 'react';
       import { createRoot } from 'react-dom/client';
       import App from './App.tsx';
