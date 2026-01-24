@@ -1,7 +1,8 @@
-const CACHE_NAME = 'industrial-site-inspector-v1.5.0';
+const CACHE_NAME = 'industrial-site-inspector-v1.5.1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './index.tsx',
   './manifest.json',
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/@babel/standalone/babel.min.js',
@@ -12,15 +13,18 @@ const ASSETS_TO_CACHE = [
   'https://esm.sh/docx@9.5.1?bundle'
 ];
 
+// On install, cache everything immediately
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      console.log('SW: Pre-caching assets');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
   self.skipWaiting();
 });
 
+// Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keyList) => {
@@ -34,22 +38,28 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
+// Cache-First Strategy for Offline Launch
 self.addEventListener('fetch', (event) => {
-  // Try to find request in cache, otherwise fetch and cache
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).then((fetchResponse) => {
-        return caches.open(CACHE_NAME).then((cache) => {
-          // Cache certain external assets dynamically
-          if (event.request.url.includes('esm.sh') || event.request.url.includes('google')) {
-            cache.put(event.request, fetchResponse.clone());
-          }
-          return fetchResponse;
-        });
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).then((networkResponse) => {
+        // Cache new successful requests to CDN or esm.sh dynamically
+        if (networkResponse.ok && (event.request.url.includes('esm.sh') || event.request.url.includes('cdn'))) {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+        }
+        return networkResponse;
       });
     }).catch(() => {
-        // Fallback for offline mode if something is missing
+      // If network fails and not in cache, return index.html for navigation requests
+      if (event.request.mode === 'navigate') {
         return caches.match('./index.html');
+      }
     })
   );
 });
