@@ -1,0 +1,7 @@
+{
+  "name": "Industrial Asset Inspector",
+  "description": "A professional tool for site inspections, allowing maintenance and non-maintenance observation tracking with photo evidence and Word document export.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Industrial Site Inspector",
+  "short_name": "Site Audit",
+  "description": "Professional Asset Inspection Tool",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3239/3239105.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

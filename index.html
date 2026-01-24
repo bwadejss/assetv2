@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1d4ed8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Industrial Asset Inspector</title>
+    <link rel="manifest" href="manifest.json" />
     
     <!-- Visual Error Logger -->
     <script>
@@ -22,6 +26,15 @@
         }
         return false;
       };
+
+      // Service Worker Registration
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW Registered', reg))
+            .catch(err => console.log('SW Registration Failed', err));
+        });
+      }
     </script>
 
     <!-- External Styles & Libraries -->
@@ -37,7 +50,9 @@
         font-family: monospace; overflow-y: auto;
       }
       .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-      .btn-active { active:scale-95 transition-all; }
+      /* Hide scrollbars for a cleaner app look */
+      ::-webkit-scrollbar { display: none; }
+      .app-container { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 
     <script type="importmap">
@@ -48,9 +63,9 @@
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client?external=react",
     "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
     "docx": "https://esm.sh/docx@9.5.1?bundle",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
     "vite": "https://esm.sh/vite@^7.3.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
@@ -62,7 +77,7 @@
     <div id="error-display">
       <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Application Error</h1>
       <pre id="error-content" style="white-space: pre-wrap;"></pre>
-      <button onclick="location.reload()" style="margin-top: 1rem; background: #3b82f6; color: white; padding: 0.5rem 1rem; rounded: 0.5rem;">Reload App</button>
+      <button onclick="location.reload()" style="margin-top: 1rem; background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem;">Reload App</button>
     </div>
 
     <script type="text/babel" data-presets="react,typescript" data-type="module">
@@ -71,13 +86,13 @@
       import { 
         ShieldCheck, User, MapPin, Factory, Settings, Info, Zap, Wind, 
         AlertCircle, CheckCircle2, ChevronRight, Minus, Trash2, Edit2,
-        ClipboardCheck, CloudUpload, Loader2, Camera, ChevronLeft, Save, X, Image as ImageIcon, Plus, RefreshCcw
+        ClipboardCheck, CloudUpload, Loader2, Camera, ChevronLeft, Save, X, Image as ImageIcon, Plus, RefreshCcw, WifiOff
       } from 'lucide-react';
       import * as docx from 'docx';
 
       // --- TYPES & CONSTANTS ---
-      const APP_VERSION = "v1.4.8-offline-persist";
-      const STORAGE_KEY = "INDUSTRIAL_INSPECTOR_DATA";
+      const APP_VERSION = "v1.5.0-PWA";
+      const STORAGE_KEY = "INDUSTRIAL_INSPECTOR_PERSIST_DATA";
       
       const SiteType = { WTW: 'WTW', STW: 'STW' };
       const RiskLevel = { LOW: 'Low', MED: 'Med', HI: 'Hi' };
@@ -156,32 +171,47 @@
                 <ShieldCheck className="w-10 h-10 text-blue-600" />
               </div>
               <h2 className="text-2xl font-bold text-slate-800">Site Inspector</h2>
-              <p className="text-slate-500">Professional Asset Verification</p>
+              <p className="text-slate-500 font-medium">Reliable Offline Auditing</p>
             </div>
             
             {hasExistingData && (
-              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
-                <p className="font-bold">Resume Inspection?</p>
-                <p>Found unsaved data for <strong>{initialData.siteName}</strong>.</p>
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm animate-pulse shadow-sm">
+                <p className="font-bold">Inspection in Progress</p>
+                <p>Resuming data for <strong>{initialData.siteName}</strong>.</p>
                 <div className="flex gap-2 mt-3">
-                   <button onClick={() => onStart(userName, siteName, siteType)} className="bg-amber-600 text-white px-4 py-2 rounded-lg font-bold">Resume</button>
-                   <button onClick={() => { if(confirm("This will permanently delete current progress. Continue?")) onClear(); }} className="bg-white border border-amber-300 px-4 py-2 rounded-lg font-bold">Start New</button>
+                   <button onClick={() => onStart(userName, siteName, siteType)} className="bg-amber-600 text-white px-4 py-2 rounded-lg font-bold shadow-sm">Continue</button>
+                   <button onClick={() => { if(confirm("Discard current progress?")) onClear(); }} className="bg-white border border-amber-300 px-4 py-2 rounded-lg font-bold text-amber-700">Clear</button>
                 </div>
               </div>
             )}
 
             <div className="space-y-4">
-              <input placeholder="Inspector Name" className="w-full p-4 rounded-xl border border-slate-300" value={userName} onChange={e => setUserName(e.target.value)} />
-              <input placeholder="Site Name" className="w-full p-4 rounded-xl border border-slate-300" value={siteName} onChange={e => setSiteName(e.target.value)} />
-              <select className="w-full p-4 rounded-xl border border-slate-300 bg-white" value={siteType} onChange={e => setSiteType(e.target.value)}>
-                <option value={SiteType.WTW}>Water Treatment Works (WTW)</option>
-                <option value={SiteType.STW}>Sewage Treatment Works (STW)</option>
-              </select>
-              <button disabled={!userName || !siteName} onClick={() => onStart(userName, siteName, siteType)} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg disabled:opacity-50">
-                {hasExistingData ? "Continue Inspection" : "Start Inspection"}
+              <div className="relative">
+                <User className="absolute left-3 top-4 text-slate-400 w-5 h-5" />
+                <input placeholder="Inspector Name" className="w-full p-4 pl-11 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500" value={userName} onChange={e => setUserName(e.target.value)} />
+              </div>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-4 text-slate-400 w-5 h-5" />
+                <input placeholder="Site Name" className="w-full p-4 pl-11 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500" value={siteName} onChange={e => setSiteName(e.target.value)} />
+              </div>
+              <div className="relative">
+                <Factory className="absolute left-3 top-4 text-slate-400 w-5 h-5" />
+                <select className="w-full p-4 pl-11 rounded-xl border border-slate-300 bg-white outline-none focus:ring-2 focus:ring-blue-500" value={siteType} onChange={e => setSiteType(e.target.value)}>
+                  <option value={SiteType.WTW}>Water Works (WTW)</option>
+                  <option value={SiteType.STW}>Sewage Works (STW)</option>
+                </select>
+              </div>
+              <button disabled={!userName || !siteName} onClick={() => onStart(userName, siteName, siteType)} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg disabled:opacity-50 active:scale-95 transition-all">
+                {hasExistingData ? "Resume Audit" : "Begin Audit"}
               </button>
             </div>
-            <p className="text-center mt-8 text-[10px] text-slate-400 uppercase font-black tracking-widest">{APP_VERSION}</p>
+            <div className="mt-8 flex flex-col items-center gap-2">
+               <div className="flex items-center gap-1 text-[10px] text-green-600 font-bold uppercase tracking-widest bg-green-50 px-3 py-1 rounded-full border border-green-100">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  Full Offline Mode Ready
+               </div>
+               <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{APP_VERSION}</p>
+            </div>
           </div>
         );
       };
@@ -214,54 +244,54 @@
 
         return (
           <div className="flex flex-col h-full bg-white max-w-lg mx-auto w-full border-x">
-            <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
-              <button onClick={onBack}><ChevronLeft className="w-6 h-6" /></button>
-              <h2 className="font-bold uppercase tracking-widest text-xs">{category} Issue</h2>
-              <div className="w-6"></div>
+            <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-20 shadow-sm">
+              <button onClick={onBack} className="p-2 -ml-2"><ChevronLeft className="w-6 h-6 text-slate-600" /></button>
+              <h2 className="font-bold uppercase tracking-widest text-xs text-slate-800">{category} Entry</h2>
+              <div className="w-10"></div>
             </div>
-            <div className="p-6 space-y-6 overflow-y-auto flex-1">
-              <div><label className="block text-sm font-bold mb-1">Asset Name / Description *</label><input className="w-full p-3 border rounded-xl" value={assetName} onChange={e => setAssetName(e.target.value)} /></div>
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 app-container">
+              <div><label className="block text-sm font-bold mb-1 text-slate-700 uppercase tracking-tighter">Asset Description *</label><input className="w-full p-3 border rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500" value={assetName} onChange={e => setAssetName(e.target.value)} placeholder="e.g. Pump 02 Motor" /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-bold mb-1">Asset ID</label><input className="w-full p-3 border rounded-xl" value={assetId} onChange={e => setAssetId(e.target.value)} /></div>
-                <div><label className="block text-sm font-bold mb-1">Seen Prev?</label>
-                  <select className="w-full p-3 border rounded-xl bg-white" value={previouslySeen} onChange={e => setPreviouslySeen(e.target.value)}>
+                <div><label className="block text-sm font-bold mb-1 text-slate-700 uppercase tracking-tighter">Asset ID</label><input className="w-full p-3 border rounded-xl shadow-sm" value={assetId} onChange={e => setAssetId(e.target.value)} placeholder="Ref ID" /></div>
+                <div><label className="block text-sm font-bold mb-1 text-slate-700 uppercase tracking-tighter">Seen Before?</label>
+                  <select className="w-full p-3 border rounded-xl bg-white shadow-sm" value={previouslySeen} onChange={e => setPreviouslySeen(e.target.value)}>
                     <option value="No">No</option><option value="Yes">Yes</option>
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-bold mb-1">Risk Level</label>
-                  <select className="w-full p-3 border rounded-xl bg-white" value={risk} onChange={e => setRisk(e.target.value)}>
+                <div><label className="block text-sm font-bold mb-1 text-slate-700 uppercase tracking-tighter">Risk Level</label>
+                  <select className="w-full p-3 border rounded-xl bg-white shadow-sm" value={risk} onChange={e => setRisk(e.target.value)}>
                     <option value={RiskLevel.LOW}>Low</option><option value={RiskLevel.MED}>Medium</option><option value={RiskLevel.HI}>High</option>
                   </select>
                 </div>
-                <div><label className="block text-sm font-bold mb-1">NC Count</label>
-                  <div className="flex border rounded-xl overflow-hidden h-[52px]">
+                <div><label className="block text-sm font-bold mb-1 text-slate-700 uppercase tracking-tighter">Defect Count</label>
+                  <div className="flex border rounded-xl overflow-hidden h-[52px] shadow-sm">
                     <button onClick={() => setCount(Math.max(1, count - 1))} className="flex-1 bg-red-50 text-red-600 font-bold">-</button>
-                    <div className="w-12 flex items-center justify-center font-bold text-lg">{count}</div>
+                    <div className="w-12 flex items-center justify-center font-bold text-lg text-slate-800">{count}</div>
                     <button onClick={() => setCount(count + 1)} className="flex-1 bg-green-50 text-green-600 font-bold">+</button>
                   </div>
                 </div>
               </div>
-              <div><label className="block text-sm font-bold mb-1">Notes</label><textarea className="w-full p-3 border rounded-xl h-24" value={notes} onChange={e => setNotes(e.target.value)} /></div>
+              <div><label className="block text-sm font-bold mb-1 text-slate-700 uppercase tracking-tighter">Observation Notes</label><textarea className="w-full p-3 border rounded-xl h-24 shadow-sm" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Describe the issue..." /></div>
               <div>
-                <label className="block text-sm font-bold mb-1">Photos ({photos.length}/10)</label>
+                <label className="block text-sm font-bold mb-1 text-slate-700 uppercase tracking-tighter">Evidence Photos ({photos.length}/10)</label>
                 <div className="grid grid-cols-3 gap-3">
                   {photos.map((p, idx) => (
-                    <div key={idx} className="aspect-square relative rounded-xl overflow-hidden border">
+                    <div key={idx} className="aspect-square relative rounded-xl overflow-hidden border shadow-sm group">
                       <img src={p} className="w-full h-full object-cover" />
-                      <button onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full"><X size={12}/></button>
+                      <button onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-lg"><X size={12}/></button>
                     </div>
                   ))}
                   {photos.length < 10 && (
                     <>
-                    <button onClick={() => cameraInputRef.current.click()} className="aspect-square border-2 border-dashed flex flex-col items-center justify-center bg-slate-50">
-                      {isProcessing ? <Loader2 className="animate-spin text-blue-600" /> : <Camera className="text-slate-400" />}
-                      <span className="text-[10px] font-bold mt-1 uppercase text-slate-400">Camera</span>
+                    <button onClick={() => cameraInputRef.current.click()} className="aspect-square border-2 border-dashed border-blue-200 flex flex-col items-center justify-center bg-blue-50/30 rounded-xl active:bg-blue-100">
+                      {isProcessing ? <Loader2 className="animate-spin text-blue-600" /> : <Camera className="text-blue-500" />}
+                      <span className="text-[10px] font-bold mt-1 uppercase text-blue-500">Camera</span>
                     </button>
-                    <button onClick={() => fileInputRef.current.click()} className="aspect-square border-2 border-dashed flex flex-col items-center justify-center bg-slate-50">
+                    <button onClick={() => fileInputRef.current.click()} className="aspect-square border-2 border-dashed border-slate-200 flex flex-col items-center justify-center bg-slate-50/30 rounded-xl active:bg-slate-100">
                       <ImageIcon className="text-slate-400" />
-                      <span className="text-[10px] font-bold mt-1 uppercase text-slate-400">Gallery</span>
+                      <span className="text-[10px] font-bold mt-1 uppercase text-slate-400">Library</span>
                     </button>
                     </>
                   )}
@@ -270,12 +300,12 @@
                 <input type="file" ref={fileInputRef} onChange={handleFile} accept="image/*" className="hidden" multiple />
               </div>
             </div>
-            <div className="p-4 border-t flex gap-2 safe-bottom">
-              <button onClick={onBack} className="flex-1 py-4 border rounded-xl font-bold text-slate-500">Cancel</button>
+            <div className="p-4 border-t flex gap-3 safe-bottom bg-slate-50">
+              <button onClick={onBack} className="flex-1 py-4 border bg-white rounded-xl font-bold text-slate-500 active:bg-slate-100">Cancel</button>
               <button onClick={() => {
-                if(!assetName) return alert("Name is required");
+                if(!assetName) return alert("Asset Name is required");
                 onSave({ id: initialData?.id || crypto.randomUUID(), category, assetName, assetId, risk, nonComplianceCount: count, previouslySeen, notes, photos, timestamp: Date.now() });
-              }} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold">Save</button>
+              }} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-all">Save Data</button>
             </div>
           </div>
         );
@@ -285,11 +315,17 @@
         const [view, setView] = useState('SETUP');
         const [data, setData] = useState(() => {
           const saved = localStorage.getItem(STORAGE_KEY);
-          if (saved) return JSON.parse(saved);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            // Ensure data isn't stale (more than 48 hours old)
+            const isFresh = (Date.now() - (parsed.lastSaved || 0)) < (48 * 60 * 60 * 1000);
+            if(isFresh) return parsed;
+          }
           return {
             userName: '', siteName: '', siteType: SiteType.WTW, date: new Date().toLocaleDateString(),
             compliantCounts: { [AssetCategory.PUMPS]: 0, [AssetCategory.MOTORS]: 0, [AssetCategory.COMPRESSORS]: 0, [AssetCategory.ELECTRICAL_PANELS]: 0 },
-            observations: []
+            observations: [],
+            lastSaved: Date.now()
           };
         });
         
@@ -297,16 +333,19 @@
         const [editingObservation, setEditingObservation] = useState(null);
         const [isExporting, setIsExporting] = useState(false);
 
-        // PERSISTENCE EFFECT
+        // PERSISTENCE EFFECT - Save on every data change
         useEffect(() => {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          if (data.siteName) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, lastSaved: Date.now() }));
+          }
         }, [data]);
 
         const resetData = () => {
           const empty = {
             userName: '', siteName: '', siteType: SiteType.WTW, date: new Date().toLocaleDateString(),
             compliantCounts: { [AssetCategory.PUMPS]: 0, [AssetCategory.MOTORS]: 0, [AssetCategory.COMPRESSORS]: 0, [AssetCategory.ELECTRICAL_PANELS]: 0 },
-            observations: []
+            observations: [],
+            lastSaved: Date.now()
           };
           setData(empty);
           localStorage.removeItem(STORAGE_KEY);
@@ -382,8 +421,8 @@
                 width: { size: 100, type: WidthType.PERCENTAGE },
                 rows: [
                   ...[
-                    ["Asset Description", obs.assetName], ["Asset ID", obs.assetId || "N/A"], ["Risk", obs.risk], ["Previously Seen", obs.previouslySeen], ["NC Count", `${obs.nonComplianceCount}`],
-                    ["Notes", obs.notes || "None"], ["Short Term Fix", ""], ["Long Term Fix", ""], ["Report Feedback Findings", ""], ["Action Owner", ""]
+                    ["Asset Description", obs.assetName], ["Asset ID", obs.assetId || "N/A"], ["Risk", obs.risk], ["Previously Seen", obs.previouslySeen], ["Defects Count", `${obs.nonComplianceCount}`],
+                    ["Notes", obs.notes || "None"], ["Short Term Fix", ""], ["Long Term Fix", ""], ["Report Findings", ""], ["Action Owner", ""]
                   ].map(r => new TableRow({ children: [new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r[0], bold: true })] })] }), new TableCell({ children: [new Paragraph(r[1])] })] }))
                 ]
               }));
@@ -414,7 +453,7 @@
             link.click();
             setTimeout(() => { 
                 URL.revokeObjectURL(url);
-                if(confirm("Report exported! Would you like to clear the app and start a fresh site?")) {
+                if(confirm("Report exported! Clear site data?")) {
                     resetData();
                 }
             }, 2000);
@@ -432,56 +471,62 @@
 
         return (
           <div className="max-w-lg mx-auto w-full bg-slate-50 min-h-screen flex flex-col border-x">
-            <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-10 flex justify-between items-center">
+            <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-30 flex justify-between items-center">
               <div>
-                <h1 className="text-lg font-bold">{data.siteName}</h1>
-                <p className="text-[10px] opacity-80 uppercase tracking-widest font-black">{data.siteType} INSPECTION</p>
+                <h1 className="text-lg font-black truncate">{data.siteName}</h1>
+                <p className="text-[10px] opacity-80 uppercase tracking-widest font-bold">{data.siteType} INSPECTION</p>
               </div>
-              <button onClick={() => { if(confirm("Discard all data and start over?")) resetData(); }} className="p-2 bg-blue-800 rounded-lg"><RefreshCcw size={16}/></button>
+              <button onClick={() => { if(confirm("Discard visit?")) resetData(); }} className="p-2 bg-blue-800 rounded-lg active:rotate-180 transition-transform"><RefreshCcw size={16}/></button>
             </header>
-            <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
+            <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 app-container">
               {[AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS].map(cat => (
-                <div key={cat} className="bg-white p-4 rounded-2xl border shadow-sm">
+                <div key={cat} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm transition-all active:shadow-md">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-slate-800">{cat}</h3>
-                    <div className="text-xs font-bold text-red-500">{data.observations.filter(o => o.category === cat).length} NC Issues</div>
+                    <h3 className="font-bold text-slate-800 tracking-tight uppercase text-xs">{cat}</h3>
+                    <div className="text-[10px] font-black px-2 py-0.5 bg-red-50 text-red-600 rounded-full border border-red-100 uppercase">{data.observations.filter(o => o.category === cat).length} NC Found</div>
                   </div>
                   <div className="flex gap-2">
-                    <div className="flex-1 flex gap-1 bg-green-50 rounded-xl overflow-hidden border border-green-100">
-                       <button onClick={() => setData({ ...data, compliantCounts: { ...data.compliantCounts, [cat]: data.compliantCounts[cat] + 1 } })} className="flex-1 text-green-700 py-3 font-bold text-sm flex items-center justify-center gap-2">
+                    <div className="flex-[1.5] flex gap-1 bg-green-50 rounded-xl overflow-hidden border border-green-200">
+                       <button onClick={() => setData({ ...data, compliantCounts: { ...data.compliantCounts, [cat]: data.compliantCounts[cat] + 1 } })} className="flex-1 text-green-700 py-3 font-black text-sm flex items-center justify-center gap-2 active:bg-green-100">
                          <CheckCircle2 size={16}/> {data.compliantCounts[cat]}
                        </button>
-                       <button onClick={() => setData({ ...data, compliantCounts: { ...data.compliantCounts, [cat]: Math.max(0, data.compliantCounts[cat] - 1) } })} className="w-10 bg-green-100 text-green-700 flex items-center justify-center font-bold border-l border-green-200">-</button>
+                       <button onClick={() => setData({ ...data, compliantCounts: { ...data.compliantCounts, [cat]: Math.max(0, data.compliantCounts[cat] - 1) } })} className="w-10 bg-green-100 text-green-700 flex items-center justify-center font-bold border-l border-green-200 active:bg-green-200">-</button>
                     </div>
-                    <button onClick={() => { setActiveCategory(cat); setEditingObservation(null); setView('FORM'); }} className="flex-1 border border-red-200 text-red-600 py-3 rounded-xl font-bold text-sm bg-white active:scale-95 transition-all">Log Issue</button>
+                    <button onClick={() => { setActiveCategory(cat); setEditingObservation(null); setView('FORM'); }} className="flex-1 border border-red-200 text-red-600 py-3 rounded-xl font-black text-xs bg-white active:scale-95 active:bg-red-50 transition-all uppercase">Log Defect</button>
                   </div>
                 </div>
               ))}
               <button onClick={() => { setActiveCategory(AssetCategory.NON_MAINTENANCE); setEditingObservation(null); setView('FORM'); }} className="w-full bg-slate-800 text-white p-5 rounded-2xl flex justify-between items-center shadow-lg active:scale-[0.98] transition-all">
-                <div className="flex items-center gap-3"><Info size={20} className="text-blue-400"/> <span>Log Non-Maintenance Issue</span></div>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-slate-700 rounded-lg"><Info size={20} className="text-blue-400"/></div>
+                  <div className="text-left">
+                    <span className="block font-bold">Non-Maintenance Issue</span>
+                    <span className="text-[10px] opacity-60 uppercase font-bold tracking-widest">Signage, Safety, PPE</span>
+                  </div>
+                </div>
                 <ChevronRight size={20} />
               </button>
               {data.observations.length > 0 && (
                 <div className="space-y-2 mt-4">
-                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Recent Observations ({data.observations.length})</h2>
+                  <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">Obs History ({data.observations.length})</h2>
                   {data.observations.slice().reverse().map(obs => (
-                    <div key={obs.id} className="bg-white p-3 rounded-xl border flex items-center justify-between shadow-sm">
+                    <div key={obs.id} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
                       <div className="text-sm truncate mr-2">
                         <div className="font-bold text-slate-800 truncate">{obs.assetName}</div>
-                        <div className="text-[10px] text-slate-400 uppercase font-bold">{obs.category}</div>
+                        <div className="text-[9px] text-slate-400 uppercase font-black">{obs.category} • RISK: {obs.risk}</div>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <button onClick={() => { setEditingObservation(obs); setActiveCategory(obs.category); setView('FORM'); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Edit2 size={14}/></button>
-                        <button onClick={() => { if(confirm("Delete?")) setData({ ...data, observations: data.observations.filter(o => o.id !== obs.id) }); }} className="p-2 bg-red-50 text-red-600 rounded-lg"><Trash2 size={14}/></button>
+                        <button onClick={() => { setEditingObservation(obs); setActiveCategory(obs.category); setView('FORM'); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg active:bg-blue-100"><Edit2 size={14}/></button>
+                        <button onClick={() => { if(confirm("Remove?")) setData({ ...data, observations: data.observations.filter(o => o.id !== obs.id) }); }} className="p-2 bg-red-50 text-red-600 rounded-lg active:bg-red-100"><Trash2 size={14}/></button>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </main>
-            <footer className="p-4 bg-white border-t sticky bottom-0 z-10 safe-bottom">
-              <button onClick={handleExport} disabled={isExporting} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all disabled:opacity-50">
-                {isExporting ? <Loader2 className="animate-spin"/> : <ClipboardCheck/>} Complete & Export report
+            <footer className="p-4 bg-white border-t sticky bottom-0 z-30 safe-bottom">
+              <button onClick={handleExport} disabled={isExporting} className="w-full bg-green-600 text-white py-4 rounded-xl font-black flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all disabled:opacity-50 uppercase tracking-wide">
+                {isExporting ? <Loader2 className="animate-spin"/> : <ClipboardCheck/>} Complete visit & report
               </button>
             </footer>
           </div>
