@@ -1,4 +1,3 @@
-
 export enum SiteType {
   WTW = 'WTW',
   STW = 'STW'
@@ -54,8 +53,8 @@ export const DEFAULT_SCORING_CONFIG: ScoringConfig = {
 };
 
 /**
- * Calculates maintenance compliance metrics.
- * 1. Total Assets Checked = [Total Pass Clicks] + [Total Unique Assets with Issues]
+ * Calculates maintenance compliance metrics based on requested logic.
+ * 1. Total Assets Checked = [Total Pass Clicks] + [Total Unique Failed Assets]
  * 2. Compliance % (Breadth) = (Pass Clicks / Total Assets Checked) * 100
  * 3. SIS (Depth) = Total Raw Defects / Total Assets Checked
  */
@@ -78,23 +77,23 @@ export const calculateCompliance = (data: InspectionData) => {
     // 2. Process observations for this category
     const catObs = data.observations.filter(o => o.category === cat);
     catObs.forEach(obs => {
-      // Sum raw defects (Defect Qty)
+      // Sum raw defects (Defect Qty) for SIS score (depth)
       totalRawDefects += obs.nonComplianceCount;
-      // Track unique assets that failed (Breadth)
+      // Track unique assets that failed for Compliance % (breadth)
       const assetKey = `${obs.assetName}-${obs.assetId || 'no-id'}`;
       uniqueFailedMaintenanceAssets.add(assetKey);
     });
   });
 
-  // Population = Passes + Failed Machines
+  // Total Population = Successful Checks + Failed Checks
   const totalAssetsChecked = totalPassClicks + uniqueFailedMaintenanceAssets.size;
   
-  // Compliance %: How much of the site is issue-free?
+  // Compliance %: Breadth score
   const compliancePercentage = totalAssetsChecked === 0 
     ? 100 
     : Math.round((totalPassClicks / totalAssetsChecked) * 100);
   
-  // SIS Score: Defect Density per machine
+  // SIS Score: Depth score (Defect Density)
   const siteIssueScore = totalAssetsChecked === 0 
     ? "0.000" 
     : (totalRawDefects / totalAssetsChecked).toFixed(3);

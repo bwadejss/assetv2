@@ -9,33 +9,6 @@
     <title>Industrial Asset Inspector</title>
     <link rel="manifest" href="manifest.json" />
     
-    <!-- Visual Error Logger -->
-    <script>
-      window.onerror = function(msg, url, line, col, error) {
-        var display = document.getElementById('error-display');
-        var content = document.getElementById('error-content');
-        if (display && content) {
-          display.style.display = 'block';
-          content.textContent = [
-            'Message: ' + msg,
-            'URL: ' + url,
-            'Line: ' + line,
-            'Column: ' + col,
-            'Error: ' + (error ? error.stack : 'No stack trace')
-          ].join('\n');
-        }
-        return false;
-      };
-
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SW Registered', reg))
-            .catch(err => console.log('SW Registration Failed', err));
-        });
-      }
-    </script>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -57,24 +30,20 @@
     
     <style>
       body { font-family: 'Inter', sans-serif; background-color: #0f172a; margin: 0; padding: 0; }
-      #error-display {
-        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: #fff; color: #ef4444; padding: 2rem; z-index: 9999;
-        font-family: monospace; overflow-y: auto;
-      }
       .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
       ::-webkit-scrollbar { display: none; }
     </style>
-<script type="importmap">
+
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client?external=react",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
+    "docx": "https://esm.sh/docx@9.5.1?bundle",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "docx": "https://esm.sh/docx@^9.5.1",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
@@ -82,13 +51,7 @@
 </head>
 <body class="dark bg-slate-900">
     <div id="root"></div>
-    <!-- Entry point for the application -->
     <script type="module" src="./index.tsx"></script>
-    <div id="error-display">
-      <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Application Error</h1>
-      <pre id="error-content" style="white-space: pre-wrap;"></pre>
-      <button onclick="location.reload()" style="margin-top: 1rem; background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem;">Reload App</button>
-    </div>
 <script type="module" src="/index.tsx"></script>
 </body>
 </html>
