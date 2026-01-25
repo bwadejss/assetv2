@@ -1,3 +1,4 @@
+
 import * as docx from 'docx';
 import { AssetCategory, InspectionData, Observation, RiskLevel, calculateCompliance } from '../types';
 
@@ -22,9 +23,9 @@ function base64ToUint8Array(base64: string): Uint8Array | null {
 
 const getRiskColor = (risk: RiskLevel) => {
   switch (risk) {
-    case RiskLevel.LOW: return "EAB308"; // Yellow-500
-    case RiskLevel.MED: return "F97316"; // Orange-500
-    case RiskLevel.HI: return "EF4444"; // Red-500
+    case RiskLevel.LOW: return "EAB308"; // Yellow
+    case RiskLevel.MED: return "F97316"; // Orange
+    case RiskLevel.HI: return "EF4444"; // Red
     default: return "000000";
   }
 };
@@ -58,7 +59,6 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
   });
 
   const sectionsChildren: any[] = [
-    // Header
     new Paragraph({
       alignment: AlignmentType.CENTER,
       heading: HeadingLevel.HEADING_1,
