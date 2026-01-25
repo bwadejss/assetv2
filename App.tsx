@@ -1,15 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
-import { SetupScreen } from './components/SetupScreen';
-import { Dashboard } from './components/Dashboard';
-import { ObservationForm } from './components/ObservationForm';
-import { ReadmeModal } from './components/ReadmeModal';
-import { SettingsModal } from './components/SettingsModal';
-import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG, ScoringConfig } from './types';
-import { generateInspectionWordDoc } from './services/docGenerator';
+import { SetupScreen } from './components/SetupScreen.tsx';
+import { Dashboard } from './components/Dashboard.tsx';
+import { ObservationForm } from './components/ObservationForm.tsx';
+import { ReadmeModal } from './components/ReadmeModal.tsx';
+import { SettingsModal } from './components/SettingsModal.tsx';
+import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG, ScoringConfig } from './types.ts';
+import { generateInspectionWordDoc } from './services/docGenerator.ts';
 import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home } from 'lucide-react';
 
-const APP_VERSION = "v1.8.0-MAINT";
+const APP_VERSION = "v1.8.1-MAINT";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
@@ -87,11 +86,11 @@ const App: React.FC = () => {
   };
 
   const handleDeleteObservation = (id: string) => {
-    if (confirm("Delete this observation?")) {
-      setData(prev => ({
-        ...prev,
-        observations: prev.observations.filter(o => o.id !== id)
-      }));
+    if (window.confirm("Delete this observation?")) {
+      setData(prev => {
+        const filtered = prev.observations.filter(o => o.id !== id);
+        return { ...prev, observations: filtered };
+      });
     }
   };
 

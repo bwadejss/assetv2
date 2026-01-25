@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { AssetCategory, InspectionData, Observation, calculateCompliance } from '../types';
+import { AssetCategory, InspectionData, Observation, calculateCompliance } from '../types.ts';
 import { Settings, Info, Zap, Wind, AlertCircle, CheckCircle2, ChevronRight, Minus, Trash2, Edit2, ShieldAlert } from 'lucide-react';
 
 interface DashboardProps {
@@ -132,13 +131,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, o
                 </div>
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => onOpenForm(obs.category, obs)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenForm(obs.category, obs); }}
                     className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-slate-700 text-blue-400 hover:bg-slate-600' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                   >
                     <Edit2 size={14} />
                   </button>
                   <button 
-                    onClick={() => onDeleteObservation(obs.id)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteObservation(obs.id); }}
                     className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-slate-700 text-red-400 hover:bg-slate-600' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                   >
                     <Trash2 size={14} />
