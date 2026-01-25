@@ -31,7 +31,11 @@ const getRiskColor = (risk: RiskLevel) => {
 
 const REPORT_FONT = "Arial Nova";
 
-export const generateInspectionWordDoc = async (data: InspectionData) => {
+/**
+ * Generates the Word document and returns the Blob.
+ * Optional: Triggers immediate download if triggerDownload is true.
+ */
+export const generateInspectionWordDoc = async (data: InspectionData, triggerDownload = false): Promise<Blob> => {
   const stats = calculateCompliance(data);
   const categories = data.config.categories;
   const maintObs = data.observations.filter(o => categories.includes(o.category));
@@ -182,11 +186,15 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
   });
   
   const blob = await Packer.toBlob(doc);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
-  link.click();
-  
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+  if (triggerDownload) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  return blob;
 };

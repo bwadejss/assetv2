@@ -110,7 +110,7 @@ const App: React.FC = () => {
     logDebug(`EVENT: Export Request`);
     setExporting(true);
     try {
-      await generateInspectionWordDoc(data);
+      await generateInspectionWordDoc(data, true); // Use true to trigger immediate download
       logDebug(`SUCCESS: Export Complete`);
       setTimeout(() => setExporting(false), 3000);
     } catch (error) {
@@ -194,7 +194,7 @@ const App: React.FC = () => {
             onClick={() => setShowShare(true)}
             className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest transition-all active:scale-95 shadow-md cursor-pointer`}
           >
-            <Share2 size={16} /> SHARE SUMMARY
+            <Share2 size={16} /> SHARE REPORT
           </button>
           <button 
             type="button"
