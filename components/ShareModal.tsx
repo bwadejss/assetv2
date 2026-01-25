@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { InspectionData } from '../types.ts';
-import { X, Mail, MessageSquare, Share2, Loader2, AlertCircle, Send, CheckCircle2, Download } from 'lucide-react';
+import { X, Mail, MessageSquare, Share2, Loader2, AlertCircle, Send, CheckCircle2 } from 'lucide-react';
 import { generateInspectionWordDoc } from '../services/docGenerator.ts';
 
 interface ShareModalProps {
@@ -14,14 +14,15 @@ type ShareStage = 'IDLE' | 'GENERATING' | 'READY' | 'ERROR';
 
 export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, darkMode }) => {
   const [stage, setStage] = useState<ShareStage>('IDLE');
+  const [preparedFile, setPreparedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [targetApp, setTargetApp] = useState<'Outlook' | 'Teams' | null>(null);
-  
-  // Use a ref to store the file across renders without triggering re-renders 
-  // or losing the reference during the async transition.
-  const preparedFileRef = useRef<File | null>(null);
 
   if (!isOpen) return null;
+
+  const sanitizeFilename = (name: string) => {
+    return name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'site_report';
+  };
 
   const handlePrepare = async (app: 'Outlook' | 'Teams') => {
     setTargetApp(app);
@@ -29,84 +30,58 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
     setError(null);
     
     try {
-      // Step 1: Generate the document (The "Heavy" part)
+      // 1. Generate the heavy document first
       const blob = await generateInspectionWordDoc(data);
-      
-      // Use a simple, clean filename for better Android app compatibility
-      const filename = `audit_report_${data.siteName.replace(/\s+/g, '_').toLowerCase()}.docx`;
+      const safeName = sanitizeFilename(data.siteName);
+      const filename = `${safeName}_audit_${data.date.replace(/\//g, '-')}.docx`;
       const file = new File([blob], filename, { 
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
       });
 
-      preparedFileRef.current = file;
+      setPreparedFile(file);
       setStage('READY');
     } catch (err: any) {
-      console.error("Doc generation failed", err);
-      setError("Failed to generate report file.");
+      console.error("Generation failed", err);
+      setError("Failed to generate report document.");
       setStage('ERROR');
     }
   };
 
-  const handleFinalShare = () => {
-    const file = preparedFileRef.current;
-    
-    // Safety check for navigator.share
-    if (!navigator.share) {
-      handleDownload();
-      setError("System sharing is not available in this browser. File has been downloaded instead.");
-      setStage('ERROR');
-      return;
-    }
+  const handleFinalShare = async () => {
+    if (!preparedFile) return;
 
-    if (!file) return;
+    try {
+      const canShare = navigator.canShare && navigator.canShare({ files: [preparedFile] });
 
-    // CRITICAL for Android: navigator.share MUST be the first call in the handler.
-    // We do NOT use 'await' before this call.
-    const shareData = {
-      files: [file],
-      title: 'Site Inspection Report',
-      text: `Audit Report for ${data.siteName}`
-    };
-
-    // Use .then/.catch instead of async/await to keep the execution stack "clean" 
-    // from the browser's perspective of user activation.
-    navigator.share(shareData)
-      .then(() => {
+      if (canShare) {
+        await navigator.share({
+          files: [preparedFile],
+          title: `Audit Report: ${data.siteName}`,
+          text: `Professional audit report for ${data.siteName} (${data.siteType}).`
+        });
         onClose();
-      })
-      .catch((shareError: any) => {
-        // AbortError means user just closed the share sheet, which is fine.
-        if (shareError.name === 'AbortError') return;
-        
-        console.error("Android Share API failed", shareError);
-        
-        // Automatic fallback: If share fails, download it.
-        handleDownload();
-        
-        if (shareError.name === 'NotAllowedError') {
-          setError("Permission Denied: The share gesture expired or was blocked. The file has been saved to your 'Downloads' folder instead.");
-        } else {
-          setError("Sharing failed. The report has been downloaded to your device.");
-        }
+      } else {
+        // Fallback for desktop or unsupported browsers
+        const url = URL.createObjectURL(preparedFile);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = preparedFile.name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        setError("System sharing not supported. File downloaded instead.");
         setStage('ERROR');
-      });
-  };
-
-  const handleDownload = () => {
-    if (!preparedFileRef.current) return;
-    const url = URL.createObjectURL(preparedFileRef.current);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = preparedFileRef.current.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+      }
+    } catch (shareError: any) {
+      if (shareError.name === 'AbortError') return;
+      console.error("Share API failed", shareError);
+      setError("The share sheet was blocked or failed. Please try again or download.");
+      setStage('ERROR');
+    }
   };
 
   const reset = () => {
     setStage('IDLE');
-    preparedFileRef.current = null;
+    setPreparedFile(null);
     setError(null);
     setTargetApp(null);
   };
@@ -117,7 +92,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
         <div className="p-6 border-b border-slate-700/30 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Share2 size={18} className="text-indigo-500" />
-            <h2 className="text-xs font-black uppercase tracking-[0.2em]">Android Export</h2>
+            <h2 className="text-xs font-black uppercase tracking-[0.2em]">Share Report</h2>
           </div>
           <button onClick={onClose} className="p-2 opacity-50 hover:opacity-100 transition-opacity">
             <X size={20} />
@@ -127,7 +102,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
         <div className="p-6 space-y-4">
           {stage === 'IDLE' && (
             <>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 text-center">Step 1: Build Document</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4">Choose Destination</p>
               
               <button 
                 onClick={() => handlePrepare('Outlook')}
@@ -137,8 +112,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
                   <Mail size={20} className="text-white" />
                 </div>
                 <div className="text-left">
-                  <div className="font-black text-sm uppercase tracking-tight">Prepare for Email</div>
-                  <div className="text-[10px] opacity-60 font-bold uppercase tracking-widest">Builds .docx report</div>
+                  <div className="font-black text-sm uppercase tracking-tight">Outlook</div>
+                  <div className="text-[10px] opacity-60 font-bold uppercase tracking-widest">Prepare for Email</div>
                 </div>
               </button>
 
@@ -150,8 +125,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
                   <MessageSquare size={20} className="text-white" />
                 </div>
                 <div className="text-left">
-                  <div className="font-black text-sm uppercase tracking-tight">Prepare for Teams</div>
-                  <div className="text-[10px] opacity-60 font-bold uppercase tracking-widest">Builds .docx report</div>
+                  <div className="font-black text-sm uppercase tracking-tight">Teams</div>
+                  <div className="text-[10px] opacity-60 font-bold uppercase tracking-widest">Prepare for Chat</div>
                 </div>
               </button>
             </>
@@ -159,54 +134,57 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
 
           {stage === 'GENERATING' && (
             <div className="py-12 flex flex-col items-center text-center space-y-4">
-              <Loader2 size={48} className="text-blue-500 animate-spin" />
+              <div className="relative">
+                <Loader2 size={48} className="text-blue-500 animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Share2 size={16} className="text-blue-500/50" />
+                </div>
+              </div>
               <div>
-                <p className="text-sm font-black uppercase tracking-widest">Processing Data</p>
-                <p className="text-[10px] opacity-50 font-bold uppercase mt-1 tracking-tight">Assembling report & photos...</p>
+                <p className="text-sm font-black uppercase tracking-widest">Assembling Report</p>
+                <p className="text-[10px] opacity-50 font-bold uppercase mt-1">Processing photos and metadata...</p>
               </div>
             </div>
           )}
 
           {stage === 'READY' && (
-            <div className="py-4 flex flex-col items-center text-center space-y-6 animate-in zoom-in-95 duration-300">
+            <div className="py-6 flex flex-col items-center text-center space-y-6 animate-in zoom-in-95 duration-300">
               <div className="bg-emerald-500/20 p-4 rounded-full border border-emerald-500/30">
                 <CheckCircle2 size={40} className="text-emerald-500" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-black uppercase tracking-widest text-emerald-500">Report Ready</p>
-                <p className="text-[10px] opacity-50 font-bold uppercase tracking-tight">Click below to trigger share sheet</p>
+                <p className="text-sm font-black uppercase tracking-widest">Report Prepared</p>
+                <p className="text-[10px] opacity-50 font-bold uppercase">Ready to send to {targetApp}</p>
               </div>
 
-              <div className="w-full space-y-3">
-                <button 
-                  onClick={handleFinalShare}
-                  className={`w-full py-5 rounded-2xl bg-blue-600 text-white flex items-center justify-center gap-3 font-black text-xs tracking-[0.2em] shadow-xl active:scale-95 transition-all`}
-                >
-                  <Send size={18} /> OPEN SYSTEM SHARE
-                </button>
-
-                <button 
-                  onClick={handleDownload}
-                  className={`w-full py-4 rounded-2xl border flex items-center justify-center gap-3 font-black text-[10px] tracking-widest transition-all ${darkMode ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <Download size={14} /> DOWNLOAD FILE DIRECTLY
-                </button>
-              </div>
+              <button 
+                onClick={handleFinalShare}
+                className={`w-full py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-3 font-black text-xs tracking-[0.2em] shadow-xl shadow-indigo-500/20 active:scale-95 transition-all animate-bounce`}
+              >
+                <Send size={18} /> SEND TO {targetApp?.toUpperCase()}
+              </button>
+              
+              <button 
+                onClick={reset}
+                className="text-[10px] font-black uppercase tracking-widest opacity-40 hover:opacity-100 underline decoration-dotted"
+              >
+                Start Over
+              </button>
             </div>
           )}
 
           {stage === 'ERROR' && (
             <div className="space-y-4">
-              <div className={`p-4 rounded-2xl flex items-start gap-3 border ${darkMode ? 'bg-amber-950/20 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-                <AlertCircle size={20} className="shrink-0 mt-0.5 text-amber-500" />
-                <div className="space-y-1 text-left">
-                  <p className="text-xs font-black uppercase tracking-tight">Android System Message</p>
+              <div className={`p-4 rounded-2xl flex items-start gap-3 border ${darkMode ? 'bg-red-950/20 border-red-500/30 text-red-200' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <AlertCircle size={20} className="shrink-0 mt-0.5 text-red-500" />
+                <div className="space-y-1">
+                  <p className="text-xs font-black uppercase tracking-tight">Share Action Failed</p>
                   <p className="text-[10px] font-bold opacity-80 leading-relaxed">{error}</p>
                 </div>
               </div>
               <button 
                 onClick={reset}
-                className="w-full py-4 text-[10px] font-black uppercase tracking-widest bg-blue-600 text-white rounded-xl shadow-lg active:scale-95"
+                className="w-full py-4 text-[10px] font-black uppercase tracking-widest bg-slate-500/10 rounded-xl hover:bg-slate-500/20 transition-colors"
               >
                 Try Again
               </button>
@@ -219,7 +197,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
             onClick={onClose} 
             className="w-full py-4 text-xs font-black uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity"
           >
-            Close
+            {stage === 'READY' ? 'Cancel' : 'Close'}
           </button>
         </div>
       </div>

@@ -132,7 +132,7 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: obs.assetName || "", font: REPORT_FONT })] })] })
           ]
         }),
-        generateRow("Asset ID / Tag", obs.assetId),
+        generateRow("Asset ID / Barcode", obs.assetId),
         new TableRow({
           children: [
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Risk Level", bold: true, font: REPORT_FONT })] })] }),
@@ -191,8 +191,7 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    const safeSiteName = data.siteName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    link.download = `${safeSiteName}_report_${data.date.replace(/\//g, '-')}.docx`;
+    link.download = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
