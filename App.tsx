@@ -5,9 +5,10 @@ import { ObservationForm } from './components/ObservationForm.tsx';
 import { ReadmeModal } from './components/ReadmeModal.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { ConfirmModal } from './components/ConfirmModal.tsx';
+import { ShareModal } from './components/ShareModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG, ScoringConfig } from './types.ts';
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Terminal } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Terminal, Share2 } from 'lucide-react';
 
 const APP_VERSION = "v2.2.1-fixed";
 
@@ -17,6 +18,7 @@ const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState(true);
   const [showReadme, setShowReadme] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   
   const [pendingHomeAction, setPendingHomeAction] = useState(false);
@@ -155,7 +157,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-24 relative z-10">
+      <main className={`flex-1 overflow-y-auto relative z-10 ${view === 'DASHBOARD' ? 'pb-44' : 'pb-24'}`}>
         {view === 'SETUP' && (
           <SetupScreen 
             onStart={handleStart} 
@@ -186,7 +188,14 @@ const App: React.FC = () => {
       </main>
 
       {view === 'DASHBOARD' && (
-        <div className={`p-4 fixed bottom-0 left-0 right-0 max-w-lg mx-auto z-40 border-t transition-colors duration-300 ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 fixed bottom-0 left-0 right-0 max-w-lg mx-auto z-40 border-t space-y-2 transition-colors duration-300 ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-white border-slate-200'}`}>
+          <button 
+            type="button"
+            onClick={() => setShowShare(true)}
+            className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest transition-all active:scale-95 shadow-md cursor-pointer`}
+          >
+            <Share2 size={16} /> SHARE SUMMARY
+          </button>
           <button 
             type="button"
             onClick={handleExport}
@@ -242,6 +251,12 @@ const App: React.FC = () => {
           darkMode={darkMode} 
         />
       )}
+      <ShareModal 
+        isOpen={showShare} 
+        onClose={() => setShowShare(false)} 
+        data={data} 
+        darkMode={darkMode} 
+      />
     </div>
   );
 };
