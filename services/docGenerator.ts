@@ -1,7 +1,7 @@
 import * as docx from 'docx';
-import { AssetCategory, InspectionData, Observation, calculateCompliance } from '../types';
+import { AssetCategory, InspectionData, Observation, RiskLevel, calculateCompliance } from '../types';
 
-const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun, BorderStyle } = docx;
+const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun } = docx;
 
 function base64ToUint8Array(base64: string): Uint8Array | null {
   try {
@@ -20,10 +20,15 @@ function base64ToUint8Array(base64: string): Uint8Array | null {
   }
 }
 
-/**
- * Mobile Microsoft Word often chokes on "Shading" and complex styles.
- * This generator uses standard layouts that work perfectly on the Android app.
- */
+const getRiskColor = (risk: RiskLevel) => {
+  switch (risk) {
+    case RiskLevel.LOW: return "EAB308"; // Yellow-500
+    case RiskLevel.MED: return "F97316"; // Orange-500
+    case RiskLevel.HI: return "EF4444"; // Red-500
+    default: return "000000";
+  }
+};
+
 export const generateInspectionWordDoc = async (data: InspectionData) => {
   const maintenanceObs = data.observations.filter(o => o.category !== AssetCategory.NON_MAINTENANCE);
   const nonMaintenanceObs = data.observations.filter(o => o.category === AssetCategory.NON_MAINTENANCE);
@@ -39,8 +44,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
 
   const assetCategories = [AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS];
 
-  // Helper for mobile-compatible table rows
-  const generateRow = (label: string, value: any, isHeader = false) => new TableRow({
+  const generateRow = (label: string, value: any) => new TableRow({
     children: [
       new TableCell({ 
         children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 22 })] })], 
@@ -58,12 +62,12 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
     new Paragraph({
       alignment: AlignmentType.CENTER,
       heading: HeadingLevel.HEADING_1,
-      children: [new TextRun({ text: `SITE AUDIT REPORT`, bold: true, size: 36 })]
+      children: [new TextRun({ text: `${data.siteName} (${data.siteType})`, bold: true, size: 36 })]
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 400 },
-      children: [new TextRun({ text: `${data.siteName} • ${data.date}`, size: 24, color: "555555" })]
+      children: [new TextRun({ text: `MAINTENANCE AUDIT REPORT • ${data.date}`, size: 24, color: "555555" })]
     }),
 
     new Paragraph({ 
@@ -72,7 +76,6 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
       children: [new TextRun({ text: "1. Inspection Summary", bold: true, size: 28 })]
     }),
 
-    // Summary Table (No shading, standard borders for mobile compatibility)
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
@@ -81,9 +84,9 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
         generateRow("Asset Class", data.siteType),
         generateRow("Visit Date", data.date),
         generateRow("Assets Verified", totalAssetsChecked),
-        generateRow("Total Deficiencies (NC)", totalNC_Sum),
+        generateRow("Total Defects Found", totalNC_Sum),
         generateRow("Previous Issues Outstanding", prevSeenCount),
-        generateRow("Non-Maintenance Defects", totalNonMaintNC),
+        generateRow("Non-Maintenance Items", totalNonMaintNC),
         new TableRow({
           children: [
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "SITE ISSUE SCORE (SIS)", bold: true, size: 24 })] })] }),
@@ -92,7 +95,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
         }),
         new TableRow({
           children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "SITE COMPLIANCE %", bold: true, size: 24 })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "MAINTENANCE COMPLIANCE %", bold: true, size: 24 })] })] }),
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${compliancePercentage}%`, bold: true, size: 28, color: compliancePercentage < 75 ? "FF0000" : "008000" })] })] }),
           ]
         })
@@ -111,8 +114,8 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
         new TableRow({
           children: [
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Category", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Pass", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Defect Assets", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Compliant", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Failed Assets", bold: true })] })] }),
           ],
         }),
         ...assetCategories.map(cat => 
@@ -140,9 +143,14 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
       rows: [
         generateRow("Asset Name", obs.assetName),
         generateRow("Asset ID", obs.assetId || "N/A"),
-        generateRow("Risk", obs.risk),
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Risk Level", bold: true, size: 22 })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: obs.risk, size: 22, color: getRiskColor(obs.risk), bold: true })] })] }),
+          ]
+        }),
         generateRow("Seen Before?", obs.previouslySeen),
-        generateRow("Quantity of NC", `${obs.nonComplianceCount}`),
+        generateRow("Defect Count", `${obs.nonComplianceCount}`),
         generateRow("Inspector Notes", obs.notes || "No notes provided."),
         generateRow("Corrective Action (Short)", ""),
         generateRow("Corrective Action (Long)", ""),
@@ -156,7 +164,6 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
       for (const photo of obs.photos) {
         const uint8 = base64ToUint8Array(photo);
         if (uint8) {
-          // Explicitly constrained width for mobile layout
           photoParts.push(new ImageRun({ 
             data: uint8, 
             transformation: { width: 180, height: 135 } 
@@ -174,7 +181,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
     sectionsChildren.push(new Paragraph({ 
       heading: HeadingLevel.HEADING_2, 
       spacing: { before: 400, after: 200 },
-      children: [new TextRun({ text: "3. Maintenance Findings", bold: true, size: 28 })]
+      children: [new TextRun({ text: "3. Maintenance Defect Log", bold: true, size: 28 })]
     }));
     for (let i = 0; i < maintenanceObs.length; i++) await addObservationToDoc(maintenanceObs[i], i);
   }
@@ -183,7 +190,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
     sectionsChildren.push(new Paragraph({ 
       heading: HeadingLevel.HEADING_2, 
       spacing: { before: 600, after: 200 },
-      children: [new TextRun({ text: "4. Site Safety/Non-Maint Findings", bold: true, size: 28 })]
+      children: [new TextRun({ text: "4. Safety & Non-Maint Log", bold: true, size: 28 })]
     }));
     for (let i = 0; i < nonMaintenanceObs.length; i++) await addObservationToDoc(nonMaintenanceObs[i], maintenanceObs.length + i);
   }
@@ -191,9 +198,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
   const doc = new Document({
     sections: [{
       properties: { 
-        page: { 
-          margin: { top: 720, right: 720, bottom: 720, left: 720 } 
-        } 
+        page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } 
       },
       children: sectionsChildren
     }]
@@ -203,7 +208,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const fileName = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
+  const fileName = `${data.siteName}_${data.siteType}_Audit_${data.date.replace(/\//g, '-')}.docx`;
   a.download = fileName;
   document.body.appendChild(a);
   a.click();

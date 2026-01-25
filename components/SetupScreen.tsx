@@ -5,11 +5,10 @@ import { ShieldCheck, User, MapPin, Factory } from 'lucide-react';
 
 interface SetupScreenProps {
   onStart: (user: string, site: string, type: SiteType) => void;
+  darkMode: boolean;
 }
 
-const APP_VERSION = "v1.4.0";
-
-export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart }) => {
+export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode }) => {
   const [userName, setUserName] = useState('');
   const [siteName, setSiteName] = useState('');
   const [siteType, setSiteType] = useState<SiteType>(SiteType.WTW);
@@ -23,71 +22,74 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart }) => {
 
   return (
     <div className="p-6 h-full flex flex-col justify-center relative min-h-[600px]">
-      <div className="mb-8 text-center">
-        <div className="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <ShieldCheck className="w-10 h-10 text-blue-600" />
+      <div className="mb-12 text-center">
+        <div className={`${darkMode ? 'bg-blue-900/40' : 'bg-blue-100'} w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner`}>
+          <ShieldCheck className={`w-12 h-12 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800">Site Inspector</h2>
-        <p className="text-slate-500">Configure your inspection details</p>
+        <h2 className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-slate-800'}`}>Site Inspector</h2>
+        <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} mt-2`}>Reliable Offline Auditing Environment</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 flex-1 max-w-sm mx-auto w-full">
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <User className="w-4 h-4" /> Inspector Name
+          <label className={`block text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2 ml-1`}>
+            Inspector Name
           </label>
-          <input 
-            required
-            type="text" 
-            value={userName}
-            onChange={(e) => setUserName(e.target.value)}
-            className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-slate-900"
-            placeholder="e.g. John Smith"
-          />
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              required
+              type="text" 
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              className={`w-full p-4 pl-12 rounded-2xl border ${darkMode ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-600 focus:ring-blue-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-blue-600'} focus:ring-2 outline-none transition-all shadow-sm`}
+              placeholder="e.g. Mike Ross"
+            />
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <MapPin className="w-4 h-4" /> Site Name
+          <label className={`block text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2 ml-1`}>
+            Site Reference
           </label>
-          <input 
-            required
-            type="text" 
-            value={siteName}
-            onChange={(e) => setSiteName(e.target.value)}
-            className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-slate-900"
-            placeholder="e.g. Riverside Station"
-          />
+          <div className="relative">
+            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              required
+              type="text" 
+              value={siteName}
+              onChange={(e) => setSiteName(e.target.value)}
+              className={`w-full p-4 pl-12 rounded-2xl border ${darkMode ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-600 focus:ring-blue-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-blue-600'} focus:ring-2 outline-none transition-all shadow-sm`}
+              placeholder="e.g. Blue River WTW"
+            />
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <Factory className="w-4 h-4" /> Site Type
+          <label className={`block text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2 ml-1`}>
+            Operational Area
           </label>
-          <select 
-            value={siteType}
-            onChange={(e) => setSiteType(e.target.value as SiteType)}
-            className="w-full p-3 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-slate-900"
-          >
-            <option value={SiteType.WTW} className="text-slate-900">Water Treatment Works (WTW)</option>
-            <option value={SiteType.STW} className="text-slate-900">Sewage Treatment Works (STW)</option>
-          </select>
+          <div className="relative">
+            <Factory className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <select 
+              value={siteType}
+              onChange={(e) => setSiteType(e.target.value as SiteType)}
+              className={`w-full p-4 pl-12 rounded-2xl border ${darkMode ? 'bg-slate-800 border-slate-700 text-white focus:ring-blue-500' : 'bg-white border-slate-200 text-slate-900 focus:ring-blue-600'} focus:ring-2 outline-none appearance-none transition-all shadow-sm`}
+            >
+              <option value={SiteType.WTW}>Water Treatment (WTW)</option>
+              <option value={SiteType.STW}>Sewage Treatment (STW)</option>
+            </select>
+          </div>
         </div>
 
         <button 
           type="submit"
           disabled={!userName || !siteName}
-          className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95"
+          className={`w-full py-5 rounded-2xl font-black text-lg transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 ${darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-700 hover:bg-blue-800 text-white'} disabled:opacity-40`}
         >
-          Start Inspection
+          Initialize Audit
         </button>
       </form>
-
-      <div className="absolute bottom-4 left-0 right-0 text-center">
-        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-          Build {APP_VERSION}
-        </p>
-      </div>
     </div>
   );
 };

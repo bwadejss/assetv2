@@ -1,30 +1,54 @@
 
 import React from 'react';
-import { AssetCategory, InspectionData, Observation } from '../types';
-import { Settings, Info, Zap, Wind, AlertCircle, CheckCircle2, ChevronRight, Minus, Trash2, Edit2 } from 'lucide-react';
+import { AssetCategory, InspectionData, Observation, calculateCompliance } from '../types';
+import { Settings, Info, Zap, Wind, AlertCircle, CheckCircle2, ChevronRight, Minus, Trash2, Edit2, ShieldAlert } from 'lucide-react';
 
 interface DashboardProps {
   data: InspectionData;
   onUpdateCompliant: (cat: AssetCategory, delta: number) => void;
   onOpenForm: (cat: AssetCategory, obs?: Observation) => void;
   onDeleteObservation: (id: string) => void;
+  darkMode: boolean;
 }
 
 const CATEGORY_META = {
-  [AssetCategory.PUMPS]: { icon: Wind, color: 'text-blue-600', bg: 'bg-blue-50' },
-  [AssetCategory.MOTORS]: { icon: Settings, color: 'text-purple-600', bg: 'bg-purple-50' },
-  [AssetCategory.COMPRESSORS]: { icon: Wind, color: 'text-green-600', bg: 'bg-green-50' },
-  [AssetCategory.ELECTRICAL_PANELS]: { icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50' },
-  [AssetCategory.NON_MAINTENANCE]: { icon: Info, color: 'text-slate-600', bg: 'bg-slate-50' },
+  [AssetCategory.PUMPS]: { icon: Wind, color: 'text-sky-500', bg: 'bg-sky-500/10' },
+  [AssetCategory.MOTORS]: { icon: Settings, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+  [AssetCategory.COMPRESSORS]: { icon: Wind, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  [AssetCategory.ELECTRICAL_PANELS]: { icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  [AssetCategory.NON_MAINTENANCE]: { icon: ShieldAlert, color: 'text-slate-500', bg: 'bg-slate-500/10' },
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, onOpenForm, onDeleteObservation }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, onOpenForm, onDeleteObservation, darkMode }) => {
   const categories = [AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS];
+  const stats = calculateCompliance(data);
+  const config = data.config;
+
+  const sisIsHigh = Number(stats.siteIssueScore) > config.sisThreshold;
+  const complianceIsLow = stats.compliancePercentage < config.complianceThreshold;
 
   return (
     <div className="p-4 space-y-6">
+      {/* Live Stats Bar */}
+      <div className={`grid grid-cols-2 gap-3 p-4 rounded-2xl border ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'} shadow-sm`}>
+        <div className="text-center border-r border-slate-700/50">
+          <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Site SIS</p>
+          <p className={`text-2xl font-black ${sisIsHigh ? 'text-red-500' : (darkMode ? 'text-blue-400' : 'text-blue-600')}`}>
+            {stats.siteIssueScore}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Compliance %</p>
+          <p className={`text-2xl font-black ${complianceIsLow ? 'text-red-500' : (darkMode ? 'text-emerald-400' : 'text-emerald-600')}`}>
+            {stats.compliancePercentage}%
+          </p>
+        </div>
+      </div>
+
       <div className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-800 px-1">Asset Loggers</h2>
+        <h2 className={`text-xs font-black uppercase tracking-[0.2em] px-1 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+          Asset Inspection Categories
+        </h2>
         <div className="grid grid-cols-1 gap-4">
           {categories.map(cat => {
             const Meta = CATEGORY_META[cat];
@@ -32,38 +56,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, o
             const observations = data.observations.filter(o => o.category === cat);
 
             return (
-              <div key={cat} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+              <div key={cat} className={`rounded-2xl p-4 shadow-sm border transition-all ${darkMode ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className={`${Meta.bg} p-2 rounded-lg`}>
+                  <div className={`${Meta.bg} p-2.5 rounded-xl`}>
                     <Meta.icon className={`w-5 h-5 ${Meta.color}`} />
                   </div>
-                  <h3 className="font-bold text-slate-800 flex-1">{cat}</h3>
+                  <h3 className="font-black text-sm uppercase tracking-tight flex-1">{cat}</h3>
                   <div className="text-right">
-                     <span className="text-[10px] font-bold text-slate-400 block uppercase">Issues</span>
-                     <span className="font-bold text-red-600">{observations.length}</span>
+                     <span className="text-[9px] font-black text-slate-500 block uppercase tracking-tighter">Issues Logged</span>
+                     <span className={`font-black text-sm ${observations.length > 0 ? 'text-red-500' : (darkMode ? 'text-slate-600' : 'text-slate-300')}`}>
+                      {observations.length}
+                     </span>
                   </div>
                 </div>
 
                 <div className="flex gap-2">
-                  <div className="flex-1 flex gap-1 h-12">
+                  <div className="flex-[1.5] flex gap-1 h-12">
                     <button 
                       onClick={() => onUpdateCompliant(cat, 1)}
-                      className="flex-1 bg-green-600 text-white font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"
+                      className={`flex-1 rounded-xl font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${darkMode ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30' : 'bg-emerald-600 text-white'}`}
                     >
-                      <CheckCircle2 className="w-4 h-4" /> {compliant}
+                      <CheckCircle2 size={16} /> {compliant} Pass
                     </button>
                     <button 
                       onClick={() => onUpdateCompliant(cat, -1)}
-                      className="w-12 bg-red-100 text-red-600 font-bold rounded-xl active:scale-95 flex items-center justify-center"
+                      className={`w-10 rounded-xl font-black active:scale-95 flex items-center justify-center ${darkMode ? 'bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600'}`}
                     >
-                      <Minus className="w-4 h-4 stroke-[3px]" />
+                      <Minus size={16} strokeWidth={3} />
                     </button>
                   </div>
                   <button 
                     onClick={() => onOpenForm(cat)}
-                    className="flex-1 bg-white border border-red-200 text-red-600 font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"
+                    className={`flex-1 rounded-xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm border ${darkMode ? 'bg-red-950/20 border-red-500/30 text-red-400 hover:bg-red-500/10' : 'bg-white border-red-200 text-red-600 hover:bg-red-50'}`}
                   >
-                    <AlertCircle className="w-4 h-4" /> Log Issue
+                    <AlertCircle size={16} /> Log Defect
                   </button>
                 </div>
               </div>
@@ -74,46 +100,48 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, o
 
       <button 
         onClick={() => onOpenForm(AssetCategory.NON_MAINTENANCE)}
-        className="w-full bg-slate-800 text-white p-5 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-md"
+        className={`w-full p-5 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-lg border ${darkMode ? 'bg-slate-800 border-slate-700 text-white hover:bg-slate-750' : 'bg-slate-900 border-slate-800 text-white'}`}
       >
         <div className="flex items-center gap-3">
-          <div className="bg-slate-700 p-2 rounded-lg">
-            <Info className="w-5 h-5" />
+          <div className="bg-blue-600/20 p-2.5 rounded-xl border border-blue-500/30">
+            <ShieldAlert className="w-5 h-5 text-blue-400" />
           </div>
           <div className="text-left">
-            <div className="font-bold">Log Non-Maintenance Issue</div>
-            <div className="text-xs opacity-60">Site safety, signage, hygiene</div>
+            <div className="font-black text-sm uppercase tracking-tight">Non-Maintenance Defect</div>
+            <div className="text-[10px] opacity-60 font-bold uppercase tracking-widest">Signage, Safety, PPE</div>
           </div>
         </div>
-        <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        <ChevronRight className="w-5 h-5 opacity-40 group-hover:translate-x-1 transition-transform" />
       </button>
 
-      {/* Observation History / Edit Section */}
+      {/* Observation History */}
       {data.observations.length > 0 && (
-        <div className="space-y-3 pb-4">
-          <h2 className="text-lg font-bold text-slate-800 px-1">Logged Observations ({data.observations.length})</h2>
+        <div className="space-y-3 pb-8">
+          <h2 className={`text-xs font-black uppercase tracking-[0.2em] px-1 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+            Defect Log ({data.observations.length})
+          </h2>
           <div className="space-y-2">
             {[...data.observations].reverse().map(obs => (
-              <div key={obs.id} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-3">
-                <div className="bg-red-50 p-2 rounded-lg">
-                   <AlertCircle className="w-4 h-4 text-red-600" />
+              <div key={obs.id} className={`p-3 rounded-2xl border flex items-center gap-3 shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                <div className={`p-2 rounded-xl border ${darkMode ? 'bg-red-950/20 border-red-500/20' : 'bg-red-50 border-red-100'}`}>
+                   <AlertCircle className="w-4 h-4 text-red-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-slate-400 uppercase truncate">{obs.category}</div>
-                  <div className="font-bold text-slate-800 truncate">{obs.assetName}</div>
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-tighter truncate">{obs.category}</div>
+                  <div className="font-black text-sm truncate uppercase tracking-tight">{obs.assetName}</div>
                 </div>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => onOpenForm(obs.category, obs)}
-                    className="p-2 bg-slate-100 rounded-lg text-slate-600 active:bg-slate-200"
+                    className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-slate-700 text-blue-400 hover:bg-slate-600' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <Edit2 size={14} />
                   </button>
                   <button 
                     onClick={() => onDeleteObservation(obs.id)}
-                    className="p-2 bg-red-50 rounded-lg text-red-600 active:bg-red-100"
+                    className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-slate-700 text-red-400 hover:bg-slate-600' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
