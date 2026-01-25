@@ -72,12 +72,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, o
                 <div className="flex gap-2">
                   <div className="flex-[1.5] flex gap-1 h-12">
                     <button 
+                      type="button"
                       onClick={() => onUpdateCompliant(cat, 1)}
                       className={`flex-1 rounded-xl font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${darkMode ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30' : 'bg-emerald-600 text-white'}`}
                     >
                       <CheckCircle2 size={16} /> {compliant} Pass
                     </button>
                     <button 
+                      type="button"
                       onClick={() => onUpdateCompliant(cat, -1)}
                       className={`w-10 rounded-xl font-black active:scale-95 flex items-center justify-center ${darkMode ? 'bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600'}`}
                     >
@@ -85,6 +87,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, o
                     </button>
                   </div>
                   <button 
+                    type="button"
                     onClick={() => onOpenForm(cat)}
                     className={`flex-1 rounded-xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm border ${darkMode ? 'bg-red-950/20 border-red-500/30 text-red-400 hover:bg-red-500/10' : 'bg-white border-red-200 text-red-600 hover:bg-red-50'}`}
                   >
@@ -98,6 +101,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, o
       </div>
 
       <button 
+        type="button"
         onClick={() => onOpenForm(AssetCategory.NON_MAINTENANCE)}
         className={`w-full p-5 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-lg border ${darkMode ? 'bg-slate-800 border-slate-700 text-white hover:bg-slate-750' : 'bg-slate-900 border-slate-800 text-white'}`}
       >
@@ -131,13 +135,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onUpdateCompliant, o
                 </div>
                 <div className="flex gap-2">
                   <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenForm(obs.category, obs); }}
+                    type="button"
+                    onClick={() => onOpenForm(obs.category, obs)}
                     className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-slate-700 text-blue-400 hover:bg-slate-600' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                   >
                     <Edit2 size={14} />
                   </button>
                   <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteObservation(obs.id); }}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onDeleteObservation(obs.id); }}
                     className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-slate-700 text-red-400 hover:bg-slate-600' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                   >
                     <Trash2 size={14} />
