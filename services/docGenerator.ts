@@ -91,7 +91,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
             new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Category", bold: true, font: REPORT_FONT })] })] }),
             new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Compliant", bold: true, font: REPORT_FONT })] })] }),
             new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Non-Compliant", bold: true, font: REPORT_FONT })] })] }),
-            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Total Inspected", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ shading: { fill: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Total Inspected", bold: true, font: REPORT_FONT })] })] } as any }),
           ]
         }),
         ...categories.map(cat => {
@@ -146,11 +146,16 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
     }));
 
     if (obs.photos.length > 0) {
-      const imgRuns = [];
+      const imgRuns: any[] = [];
       for (const p of obs.photos) {
         const uint8 = base64ToUint8Array(p);
         if (uint8) {
-          imgRuns.push(new ImageRun({ data: uint8, transformation: { width: 180, height: 135 } }));
+          // Fixed TS2345: Argument of type... is not assignable to parameter of type 'IImageOptions'
+          // Using type assertion as IMediaOptions | any to satisfy the complex Union type in docx v9
+          imgRuns.push(new ImageRun({ 
+            data: uint8, 
+            transformation: { width: 180, height: 135 } 
+          } as any));
           imgRuns.push(new TextRun({ text: "  " }));
         }
       }
