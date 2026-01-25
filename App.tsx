@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { SetupScreen } from './components/SetupScreen';
 import { Dashboard } from './components/Dashboard';
@@ -8,7 +9,7 @@ import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_
 import { generateInspectionWordDoc } from './services/docGenerator';
 import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home } from 'lucide-react';
 
-const APP_VERSION = "v1.7.0-MAINT";
+const APP_VERSION = "v1.8.0-MAINT";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
@@ -99,7 +100,7 @@ const App: React.FC = () => {
   };
 
   const handleBackToMenu = () => {
-    if (confirm("All current inspection data will be deleted. Continue?")) {
+    if (confirm("WARNING: All current inspection data will be permanently deleted. Do you want to return to the main menu?")) {
       setData({
         userName: '',
         siteName: '',
@@ -157,13 +158,13 @@ const App: React.FC = () => {
             {view === 'SETUP' ? 'Site Inspector' : `${data.siteName} (${data.siteType})`}
           </h1>
           <p className="text-[10px] opacity-80 uppercase tracking-widest font-black">
-            {view === 'SETUP' ? APP_VERSION : `Inspection Active • ${APP_VERSION}`}
+            {view === 'SETUP' ? APP_VERSION : `Maintenance Audit • ${APP_VERSION}`}
           </p>
         </div>
         
         <div className="flex items-center gap-1">
           {view !== 'SETUP' && (
-             <button onClick={handleBackToMenu} className="p-2 hover:bg-white/10 rounded-lg" title="Main Menu">
+            <button onClick={handleBackToMenu} className="p-2 hover:bg-white/10 rounded-lg" title="Back to Menu">
               <Home size={18} />
             </button>
           )}
@@ -171,7 +172,7 @@ const App: React.FC = () => {
             <BookOpen size={18} />
           </button>
           {view !== 'SETUP' && (
-            <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-white/10 rounded-lg" title="Scoring Settings">
+            <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-white/10 rounded-lg" title="Scoring Config">
               <Settings size={18} />
             </button>
           )}
@@ -211,9 +212,9 @@ const App: React.FC = () => {
             className={`w-full ${exporting ? 'bg-slate-500' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-4 py-4 rounded-xl flex items-center justify-center gap-2 font-bold transition-all active:scale-95 shadow-md`}
           >
             {exporting ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> Exporting...</>
+              <><Loader2 className="w-5 h-5 animate-spin" /> Generating Report...</>
             ) : (
-              <><ClipboardCheck className="w-5 h-5" /> Finish & Export Report</>
+              <><ClipboardCheck className="w-5 h-5" /> Export Maintenance Report</>
             )}
           </button>
         </div>

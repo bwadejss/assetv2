@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { X, Info, ShieldCheck, Zap } from 'lucide-react';
 
@@ -14,7 +15,7 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({ onClose, darkMode }) =
         <div className={`p-6 border-b sticky top-0 flex items-center justify-between ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'} backdrop-blur-md`}>
           <div className="flex items-center gap-2">
             <Info className="text-blue-500" />
-            <h2 className="font-black text-sm uppercase tracking-widest">Audit System Guide</h2>
+            <h2 className="font-black text-sm uppercase tracking-widest">Audit Scoring Guide</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-red-500/10 text-slate-400 rounded-full">
             <X size={20} />
@@ -25,39 +26,39 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({ onClose, darkMode }) =
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-emerald-500">
               <ShieldCheck size={20} />
-              <h3 className="font-black text-xs uppercase tracking-widest">Site Compliance % (Breadth)</h3>
+              <h3 className="font-black text-xs uppercase tracking-widest">1. Compliance % (Pass Rate)</h3>
             </div>
             <p className={`text-sm leading-relaxed ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              Measures the <strong>maintenance compliance</strong> across the site. It shows what portion of the checked population had zero defects.
+              Tracks the <strong>Breadth</strong> of issues. It tells you what portion of the site's maintenance infrastructure is issue-free.
             </p>
             <div className={`p-3 rounded-xl font-mono text-xs ${darkMode ? 'bg-slate-800 text-emerald-400' : 'bg-slate-50 text-emerald-700'}`}>
               (Total Pass Clicks / Total Assets Checked) * 100
             </div>
             <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-400'} italic`}>
-              Note: This asks "Did the machine pass or fail?". Multiple defects on one machine still only count as one failed asset.
+              Note: This ignores how many things are wrong with a specific machine; it simply asks "Did it pass or fail?".
             </p>
           </section>
 
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-blue-500">
               <Zap size={20} />
-              <h3 className="font-black text-xs uppercase tracking-widest">SIS Score (Depth)</h3>
+              <h3 className="font-black text-xs uppercase tracking-widest">2. SIS Score (Defect Density)</h3>
             </div>
             <p className={`text-sm leading-relaxed ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              Measures <strong>Defect Density</strong>. It represents the average number of physical defects found per asset checked.
+              Tracks the <strong>Depth</strong> of issues. It measures the average number of physical defects found per asset checked.
             </p>
             <div className={`p-3 rounded-xl font-mono text-xs ${darkMode ? 'bg-slate-800 text-blue-400' : 'bg-slate-50 text-blue-700'}`}>
-              Total Sum of Defects / Total Assets Checked
+              Total Raw Defect Qty / Total Assets Checked
             </div>
             <p className={`text-xs leading-relaxed ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              Risk levels (Low/Med/Hi) are recorded for reporting priority but do not affect the mathematical SIS calculation.
+              <strong>Goal: 0.000</strong>. A high Compliance % but a high SIS score means that while most equipment is okay, the failed assets have multiple significant defects.
             </p>
           </section>
 
           <div className={`p-4 rounded-2xl border flex gap-3 ${darkMode ? 'bg-blue-900/10 border-blue-500/20 text-blue-300' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
              <Info className="shrink-0" size={18} />
              <p className="text-[11px] font-bold leading-tight">
-               SIS targets 0.000. Higher scores indicate a high density of issues on specific equipment, even if the overall compliance % is high.
+               Non-Maintenance defects (PPE, Signage) are tracked separately and do not penalize your mechanical SIS score.
              </p>
           </div>
         </div>

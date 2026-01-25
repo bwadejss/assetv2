@@ -21,11 +21,15 @@ function base64ToUint8Array(base64: string): Uint8Array | null {
   }
 }
 
+/**
+ * Returns Hex color for Word TextRun
+ * Low = Yellow (EAB308), Med = Orange (F97316), Hi = Red (EF4444)
+ */
 const getRiskColor = (risk: RiskLevel) => {
   switch (risk) {
-    case RiskLevel.LOW: return "EAB308"; // Yellow
-    case RiskLevel.MED: return "F97316"; // Orange
-    case RiskLevel.HI: return "EF4444"; // Red
+    case RiskLevel.LOW: return "EAB308";
+    case RiskLevel.MED: return "F97316";
+    case RiskLevel.HI: return "EF4444";
     default: return "000000";
   }
 };
@@ -59,6 +63,7 @@ export const generateInspectionWordDoc = async (data: InspectionData) => {
   });
 
   const sectionsChildren: any[] = [
+    // Header: Site Name (Type)
     new Paragraph({
       alignment: AlignmentType.CENTER,
       heading: HeadingLevel.HEADING_1,

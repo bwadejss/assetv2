@@ -1,3 +1,4 @@
+
 export enum SiteType {
   WTW = 'WTW',
   STW = 'STW'
@@ -18,8 +19,8 @@ export enum AssetCategory {
 }
 
 export interface ScoringConfig {
-  sisThreshold: number; // Score above which turns red
-  complianceThreshold: number; // Percentage below which turns red
+  sisThreshold: number; 
+  complianceThreshold: number;
 }
 
 export interface Observation {
@@ -31,7 +32,7 @@ export interface Observation {
   nonComplianceCount: number;
   previouslySeen: 'Yes' | 'No';
   notes: string;
-  photos: string[]; // Base64 strings
+  photos: string[]; 
   timestamp: number;
 }
 
@@ -53,34 +54,50 @@ export const DEFAULT_SCORING_CONFIG: ScoringConfig = {
 };
 
 /**
- * Calculates site metrics based on maintenance compliance.
- * Risk weights are ignored in calculations per requirements.
- * Total Assets Checked = [Total Pass Clicks] + [Total Number of Assets with Issues logged]
+ * Calculates maintenance compliance metrics.
+ * 1. Total Assets Checked = [Total Pass Clicks] + [Total Unique Assets with Issues]
+ * 2. Compliance % (Breadth) = (Pass Clicks / Total Assets Checked) * 100
+ * 3. SIS (Depth) = Total Raw Defects / Total Assets Checked
  */
 export const calculateCompliance = (data: InspectionData) => {
-  const categories = [AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS];
+  const maintenanceCategories = [
+    AssetCategory.PUMPS, 
+    AssetCategory.MOTORS, 
+    AssetCategory.COMPRESSORS, 
+    AssetCategory.ELECTRICAL_PANELS
+  ];
+  
   let totalPassClicks = 0;
   let totalRawDefects = 0;
-  let uniqueMaintenanceAssetsWithIssues = new Set<string>();
+  const uniqueFailedMaintenanceAssets = new Set<string>();
 
-  categories.forEach(cat => {
+  maintenanceCategories.forEach(cat => {
+    // 1. Sum up all 'Pass' button clicks
     totalPassClicks += (data.compliantCounts[cat] || 0);
-    const catObs = data.observations.filter(o => o.category === cat);
     
+    // 2. Process observations for this category
+    const catObs = data.observations.filter(o => o.category === cat);
     catObs.forEach(obs => {
+      // Sum raw defects (Defect Qty)
       totalRawDefects += obs.nonComplianceCount;
-      // We assume assetName + assetId uniquely identifies the machine for the "Depth" calc
-      uniqueMaintenanceAssetsWithIssues.add(`${obs.assetName}-${obs.assetId || ''}`);
+      // Track unique assets that failed (Breadth)
+      const assetKey = `${obs.assetName}-${obs.assetId || 'no-id'}`;
+      uniqueFailedMaintenanceAssets.add(assetKey);
     });
   });
 
-  const totalAssetsChecked = totalPassClicks + uniqueMaintenanceAssetsWithIssues.size;
+  // Population = Passes + Failed Machines
+  const totalAssetsChecked = totalPassClicks + uniqueFailedMaintenanceAssets.size;
   
-  // Site Issue Score (SIS): Raw Defects per Asset.
-  const siteIssueScore = totalAssetsChecked === 0 ? "0.000" : (totalRawDefects / totalAssetsChecked).toFixed(3);
+  // Compliance %: How much of the site is issue-free?
+  const compliancePercentage = totalAssetsChecked === 0 
+    ? 100 
+    : Math.round((totalPassClicks / totalAssetsChecked) * 100);
   
-  // Compliance percentage: Percentage of assets that were completely compliant
-  const compliancePercentage = totalAssetsChecked === 0 ? 100 : Math.round((totalPassClicks / totalAssetsChecked) * 100);
+  // SIS Score: Defect Density per machine
+  const siteIssueScore = totalAssetsChecked === 0 
+    ? "0.000" 
+    : (totalRawDefects / totalAssetsChecked).toFixed(3);
   
   return {
     compliancePercentage,
