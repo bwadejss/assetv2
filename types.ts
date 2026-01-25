@@ -9,18 +9,16 @@ export enum RiskLevel {
   HI = 'Hi'
 }
 
-export enum AssetCategory {
-  PUMPS = 'Pumps',
-  MOTORS = 'Motors',
-  COMPRESSORS = 'Compressors',
-  ELECTRICAL_PANELS = 'Electrical Panels',
-  NON_MAINTENANCE = 'Non-Maintenance'
-}
+export type AssetCategory = string;
 
-export interface ScoringConfig {
-  sisThreshold: number; 
-  complianceThreshold: number;
-}
+export const DEFAULT_CATEGORIES: AssetCategory[] = [
+  'Pumps',
+  'Motors',
+  'Compressors',
+  'Electrical Panels'
+];
+
+export const NON_MAINTENANCE_CATEGORY = 'Non-Maintenance';
 
 export interface Observation {
   id: string;
@@ -30,10 +28,28 @@ export interface Observation {
   risk: RiskLevel;
   nonComplianceCount: number;
   previouslySeen: 'Yes' | 'No';
+  shortTermFix: string;
+  longTermFix: string;
+  feedbackNotes: string;
+  actionOwner: string;
   notes: string;
-  photos: string[]; 
+  photos: string[]; // Base64 strings
   timestamp: number;
 }
+
+export interface ScoringConfig {
+  sisThreshold: number;
+  complianceThreshold: number;
+  categories: AssetCategory[];
+  debugMode: boolean; // NEW: Toggle for on-screen debug log
+}
+
+export const DEFAULT_SCORING_CONFIG: ScoringConfig = {
+  sisThreshold: 0.5,
+  complianceThreshold: 85,
+  categories: [...DEFAULT_CATEGORIES],
+  debugMode: false
+};
 
 export interface InspectionData {
   userName: string;
@@ -47,61 +63,31 @@ export interface InspectionData {
 
 export type AppView = 'SETUP' | 'DASHBOARD' | 'OBSERVATION_FORM';
 
-export const DEFAULT_SCORING_CONFIG: ScoringConfig = {
-  sisThreshold: 0.5,
-  complianceThreshold: 75
-};
-
-/**
- * Calculates maintenance compliance metrics based on requested logic.
- * 1. Total Assets Checked = [Total Pass Clicks] + [Total Unique Failed Assets]
- * 2. Compliance % (Breadth) = (Pass Clicks / Total Assets Checked) * 100
- * 3. SIS (Depth) = Total Raw Defects / Total Assets Checked
- */
 export const calculateCompliance = (data: InspectionData) => {
-  const maintenanceCategories = [
-    AssetCategory.PUMPS, 
-    AssetCategory.MOTORS, 
-    AssetCategory.COMPRESSORS, 
-    AssetCategory.ELECTRICAL_PANELS
-  ];
-  
-  let totalPassClicks = 0;
-  let totalRawDefects = 0;
-  const uniqueFailedMaintenanceAssets = new Set<string>();
+  const mechanicalCategories = data.config.categories;
 
-  maintenanceCategories.forEach(cat => {
-    // 1. Sum up all 'Pass' button clicks
+  let totalPassClicks = 0;
+  mechanicalCategories.forEach(cat => {
     totalPassClicks += (data.compliantCounts[cat] || 0);
-    
-    // 2. Process observations for this category
-    const catObs = data.observations.filter(o => o.category === cat);
-    catObs.forEach(obs => {
-      // Sum raw defects (Defect Qty) for SIS score (depth)
-      totalRawDefects += obs.nonComplianceCount;
-      // Track unique assets that failed for Compliance % (breadth)
-      const assetKey = `${obs.assetName}-${obs.assetId || 'no-id'}`;
-      uniqueFailedMaintenanceAssets.add(assetKey);
-    });
   });
 
-  // Total Population = Successful Checks + Failed Checks
-  const totalAssetsChecked = totalPassClicks + uniqueFailedMaintenanceAssets.size;
+  const mechanicalObservations = data.observations.filter(o => 
+    mechanicalCategories.includes(o.category)
+  );
+
+  const assetsWithIssuesCount = mechanicalObservations.length;
+  const totalMechanicalDefects = mechanicalObservations.reduce((sum, obs) => sum + obs.nonComplianceCount, 0);
+
+  const totalAssetsChecked = totalPassClicks + assetsWithIssuesCount;
   
-  // Compliance %: Breadth score
-  const compliancePercentage = totalAssetsChecked === 0 
-    ? 100 
-    : Math.round((totalPassClicks / totalAssetsChecked) * 100);
-  
-  // SIS Score: Depth score (Defect Density)
-  const siteIssueScore = totalAssetsChecked === 0 
-    ? "0.000" 
-    : (totalRawDefects / totalAssetsChecked).toFixed(3);
+  const siteIssueScore = totalAssetsChecked === 0 ? "0.000" : (totalMechanicalDefects / totalAssetsChecked).toFixed(3);
+  const compliancePercentage = totalAssetsChecked === 0 ? 100 : Math.round((totalPassClicks / totalAssetsChecked) * 100);
   
   return {
     compliancePercentage,
     siteIssueScore,
     totalAssetsChecked,
-    totalNC_Sum: totalRawDefects
+    totalMechanicalDefects,
+    assetsWithIssuesCount
   };
 };

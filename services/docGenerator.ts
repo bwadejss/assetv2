@@ -1,6 +1,5 @@
-
 import * as docx from 'docx';
-import { AssetCategory, InspectionData, Observation, RiskLevel, calculateCompliance } from '../types';
+import { AssetCategory, InspectionData, Observation, calculateCompliance, RiskLevel, NON_MAINTENANCE_CATEGORY } from '../types.ts';
 
 const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun } = docx;
 
@@ -21,10 +20,6 @@ function base64ToUint8Array(base64: string): Uint8Array | null {
   }
 }
 
-/**
- * Returns Hex color for Word TextRun
- * Low = Yellow (EAB308), Med = Orange (F97316), Hi = Red (EF4444)
- */
 const getRiskColor = (risk: RiskLevel) => {
   switch (risk) {
     case RiskLevel.LOW: return "EAB308";
@@ -34,192 +29,161 @@ const getRiskColor = (risk: RiskLevel) => {
   }
 };
 
+const REPORT_FONT = "Arial Nova";
+
 export const generateInspectionWordDoc = async (data: InspectionData) => {
-  const maintenanceObs = data.observations.filter(o => o.category !== AssetCategory.NON_MAINTENANCE);
-  const nonMaintenanceObs = data.observations.filter(o => o.category === AssetCategory.NON_MAINTENANCE);
-  const totalNonMaintNC = nonMaintenanceObs.reduce((sum, obs) => sum + obs.nonComplianceCount, 0);
-  const prevSeenCount = data.observations.filter(o => o.previouslySeen === 'Yes').length;
+  const stats = calculateCompliance(data);
+  const categories = data.config.categories;
+  const maintObs = data.observations.filter(o => categories.includes(o.category));
+  const nonMaintObs = data.observations.filter(o => o.category === NON_MAINTENANCE_CATEGORY);
   
-  const { 
-    siteIssueScore, 
-    totalAssetsChecked, 
-    totalNC_Sum, 
-    compliancePercentage 
-  } = calculateCompliance(data);
+  const totalNonMaintDefects = nonMaintObs.reduce((s, o) => s + o.nonComplianceCount, 0);
 
-  const assetCategories = [AssetCategory.PUMPS, AssetCategory.MOTORS, AssetCategory.COMPRESSORS, AssetCategory.ELECTRICAL_PANELS];
-
-  const generateRow = (label: string, value: any) => new TableRow({
+  const generateRow = (label: string, value: any, isHeader = false) => new TableRow({
     children: [
       new TableCell({ 
-        children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 22 })] })], 
-        width: { size: 45, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 20, font: REPORT_FONT })] })], 
+        width: { size: 40, type: WidthType.PERCENTAGE },
+        shading: isHeader ? { fill: "F2F2F2" } : undefined
       }),
       new TableCell({ 
-        children: [new Paragraph({ children: [new TextRun({ text: `${value}`, size: 22 })] })], 
-        width: { size: 55, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: value !== undefined && value !== "" && value !== null ? `${value}` : "", size: 20, font: REPORT_FONT })] })], 
+        width: { size: 60, type: WidthType.PERCENTAGE },
       }),
     ]
   });
 
-  const sectionsChildren: any[] = [
-    // Header: Site Name (Type)
+  const children: any[] = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
       heading: HeadingLevel.HEADING_1,
-      children: [new TextRun({ text: `${data.siteName} (${data.siteType})`, bold: true, size: 36 })]
+      spacing: { after: 200 },
+      children: [new TextRun({ text: `${data.siteName} (${data.siteType})`, bold: true, size: 36, font: REPORT_FONT })]
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 400 },
-      children: [new TextRun({ text: `MAINTENANCE AUDIT REPORT • ${data.date}`, size: 24, color: "555555" })]
+      children: [new TextRun({ text: `MAINTENANCE COMPLIANCE AUDIT • ${data.date}`, size: 18, color: "555555", bold: true, font: REPORT_FONT })]
     }),
 
-    new Paragraph({ 
-      heading: HeadingLevel.HEADING_2,
-      spacing: { after: 200 },
-      children: [new TextRun({ text: "1. Inspection Summary", bold: true, size: 28 })]
-    }),
-
+    new Paragraph({ text: "1. Audit Summary", heading: HeadingLevel.HEADING_2, spacing: { after: 200 } }),
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
-        generateRow("Inspector Name", data.userName),
+        generateRow("Inspector", data.userName),
         generateRow("Site Reference", data.siteName),
-        generateRow("Asset Class", data.siteType),
-        generateRow("Visit Date", data.date),
-        generateRow("Assets Verified", totalAssetsChecked),
-        generateRow("Total Defects Found", totalNC_Sum),
-        generateRow("Previous Issues Outstanding", prevSeenCount),
-        generateRow("Non-Maintenance Items", totalNonMaintNC),
+        generateRow("Facility Type", data.siteType),
+        generateRow("Audit Date", data.date),
+        generateRow("Total Assets Checked", stats.totalAssetsChecked),
+        generateRow("Total Maintenance Defects Found", stats.totalMechanicalDefects),
+        generateRow("Total Non-Maintenance Defects Found", totalNonMaintDefects),
+        generateRow("Mechanical SIS (Depth)", stats.siteIssueScore),
+        generateRow("Compliance (Breadth)", `${stats.compliancePercentage}%`),
+      ]
+    }),
+
+    new Paragraph({ text: "2. Compliance Breakdown by Category", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
         new TableRow({
           children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "SITE ISSUE SCORE (SIS)", bold: true, size: 24 })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${siteIssueScore}`, bold: true, size: 28, color: Number(siteIssueScore) > 0.5 ? "FF0000" : "000000" })] })] }),
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Category", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Compliant", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Non-Compliant", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Total Inspected", bold: true, font: REPORT_FONT })] })] }),
           ]
         }),
-        new TableRow({
-          children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "MAINTENANCE COMPLIANCE %", bold: true, size: 24 })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${compliancePercentage}%`, bold: true, size: 28, color: compliancePercentage < 75 ? "FF0000" : "008000" })] })] }),
-          ]
+        ...categories.map(cat => {
+          const pass = data.compliantCounts[cat] || 0;
+          const fail = data.observations.filter(o => o.category === cat).length;
+          return new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: cat, font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${pass}`, font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${fail}`, font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${pass + fail}`, font: REPORT_FONT })] })] }),
+            ]
+          });
         })
       ]
     }),
 
-    new Paragraph({ 
-      heading: HeadingLevel.HEADING_2,
-      spacing: { before: 400, after: 200 },
-      children: [new TextRun({ text: "2. Compliance Statistics", bold: true, size: 28 })]
-    }),
-
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Category", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Compliant", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Failed Assets", bold: true })] })] }),
-          ],
-        }),
-        ...assetCategories.map(cat => 
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: cat })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.compliantCounts[cat] || 0}` })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.observations.filter(o => o.category === cat).length}` })] })] }),
-            ],
-          })
-        ),
-      ],
-    }),
+    new Paragraph({ text: "3. Detailed Maintenance Findings", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
   ];
 
-  const addObservationToDoc = async (obs: Observation, index: number) => {
-    sectionsChildren.push(new Paragraph({ 
+  const addObsToDoc = async (obs: Observation, index: number) => {
+    children.push(new Paragraph({ 
+      text: `Observation #${index + 1}: ${obs.category}`, 
       heading: HeadingLevel.HEADING_3, 
-      spacing: { before: 600, after: 200 },
-      children: [new TextRun({ text: `Observation #${index + 1}: ${obs.category}`, bold: true, color: "CC0000", size: 24 })] 
+      spacing: { before: 300, after: 150 } 
     }));
 
-    sectionsChildren.push(new Table({
+    children.push(new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
-        generateRow("Asset Name", obs.assetName),
-        generateRow("Asset ID", obs.assetId || "N/A"),
         new TableRow({
           children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Risk Level", bold: true, size: 22 })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: obs.risk, size: 22, color: getRiskColor(obs.risk), bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Asset Name / Description", bold: true, font: REPORT_FONT })] })], width: { size: 30, type: WidthType.PERCENTAGE } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: obs.assetName || "", font: REPORT_FONT })] })] })
           ]
         }),
-        generateRow("Seen Before?", obs.previouslySeen),
-        generateRow("Defect Count", `${obs.nonComplianceCount}`),
-        generateRow("Inspector Notes", obs.notes || "No notes provided."),
-        generateRow("Corrective Action (Short)", ""),
-        generateRow("Corrective Action (Long)", ""),
+        generateRow("Asset ID / Barcode", obs.assetId),
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Risk Level", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: (obs.risk || "").toUpperCase(), color: getRiskColor(obs.risk), bold: true, font: REPORT_FONT })] })] })
+          ]
+        }),
+        generateRow("Defect Count", obs.nonComplianceCount),
+        generateRow("Previously Seen", obs.previouslySeen),
+        generateRow("Findings", obs.feedbackNotes),
+        generateRow("Short Term Fix", obs.shortTermFix),
+        generateRow("Long Term Fix", obs.longTermFix),
+        generateRow("Report Feedback", ""),
+        generateRow("Action Owner", ""),
       ],
     }));
 
-    if (obs.photos && obs.photos.length > 0) {
-      sectionsChildren.push(new Paragraph({ text: "Evidence Photos:", spacing: { before: 200, after: 100 }, children: [new TextRun({ bold: true, size: 18 })] }));
-      
-      const photoParts: any[] = [];
-      for (const photo of obs.photos) {
-        const uint8 = base64ToUint8Array(photo);
+    if (obs.photos.length > 0) {
+      const imgRuns = [];
+      for (const p of obs.photos) {
+        const uint8 = base64ToUint8Array(p);
         if (uint8) {
-          photoParts.push(new ImageRun({ 
-            data: uint8, 
-            transformation: { width: 180, height: 135 } 
-          } as any));
-          photoParts.push(new TextRun({ text: "  " }));
+          imgRuns.push(new ImageRun({ data: uint8, transformation: { width: 180, height: 135 } }));
+          imgRuns.push(new TextRun({ text: "  " }));
         }
       }
-      if (photoParts.length > 0) {
-        sectionsChildren.push(new Paragraph({ children: photoParts }));
-      }
+      children.push(new Paragraph({ children: imgRuns, spacing: { before: 100, after: 200 } }));
     }
   };
 
-  if (maintenanceObs.length > 0) {
-    sectionsChildren.push(new Paragraph({ 
-      heading: HeadingLevel.HEADING_2, 
-      spacing: { before: 400, after: 200 },
-      children: [new TextRun({ text: "3. Maintenance Defect Log", bold: true, size: 28 })]
-    }));
-    for (let i = 0; i < maintenanceObs.length; i++) await addObservationToDoc(maintenanceObs[i], i);
-  }
-
-  if (nonMaintenanceObs.length > 0) {
-    sectionsChildren.push(new Paragraph({ 
-      heading: HeadingLevel.HEADING_2, 
-      spacing: { before: 600, after: 200 },
-      children: [new TextRun({ text: "4. Safety & Non-Maint Log", bold: true, size: 28 })]
-    }));
-    for (let i = 0; i < nonMaintenanceObs.length; i++) await addObservationToDoc(nonMaintenanceObs[i], maintenanceObs.length + i);
-  }
-
-  const doc = new Document({
-    sections: [{
-      properties: { 
-        page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } 
-      },
-      children: sectionsChildren
-    }]
-  });
-
-  const blob = await Packer.toBlob(doc);
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const fileName = `${data.siteName}_${data.siteType}_Audit_${data.date.replace(/\//g, '-')}.docx`;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
+  for (let i = 0; i < maintObs.length; i++) await addObsToDoc(maintObs[i], i);
   
-  setTimeout(() => {
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  }, 2000);
+  if (nonMaintObs.length > 0) {
+    children.push(new Paragraph({ text: "4. Non-Maintenance Oriented Findings", heading: HeadingLevel.HEADING_2, spacing: { before: 600, after: 200 } }));
+    for (let i = 0; i < nonMaintObs.length; i++) await addObsToDoc(nonMaintObs[i], maintObs.length + i);
+  }
+
+  const doc = new Document({ 
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: REPORT_FONT,
+          },
+        },
+      },
+    },
+    sections: [{ children }] 
+  });
+  
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
+  link.click();
+  
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 };

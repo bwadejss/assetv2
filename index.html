@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#1d4ed8" />
-    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Industrial Asset Inspector</title>
     <link rel="manifest" href="manifest.json" />
@@ -17,7 +17,6 @@
           extend: {
             colors: {
               slate: {
-                750: '#1e293b',
                 850: '#0f172a',
                 950: '#020617'
               }
@@ -29,9 +28,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     
     <style>
-      body { font-family: 'Inter', sans-serif; background-color: #0f172a; margin: 0; padding: 0; }
+      body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; transition: background-color 0.3s ease; }
       .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
       ::-webkit-scrollbar { display: none; }
+      .app-container { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 
     <script type="importmap">
@@ -43,13 +43,15 @@
     "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
     "docx": "https://esm.sh/docx@9.5.1?bundle",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="dark bg-slate-900">
+<body class="dark bg-slate-900 text-slate-100">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
 <script type="module" src="/index.tsx"></script>

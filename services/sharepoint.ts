@@ -6,8 +6,8 @@ import { InspectionData, calculateCompliance } from '../types';
  * The Excel file in SharePoint can then be updated via the "Add a row into a table" action.
  */
 export const syncToExcel = async (data: InspectionData) => {
-  // Fix: Destructure correct property names as defined in calculateCompliance return type
-  const { siteIssueScore, totalAssetsChecked, totalNC_Sum } = calculateCompliance(data);
+  // Fix: Destructure correct property names as defined in calculateCompliance return type (totalMechanicalDefects instead of totalNC_Sum)
+  const { siteIssueScore, totalAssetsChecked, totalMechanicalDefects } = calculateCompliance(data);
   
   const WEBHOOK_URL = ""; // PASTE YOUR POWER AUTOMATE WEBHOOK URL HERE
 
@@ -23,7 +23,7 @@ export const syncToExcel = async (data: InspectionData) => {
     date: data.date,
     complianceScore: siteIssueScore,
     totalAssets: totalAssetsChecked,
-    totalIssues: totalNC_Sum,
+    totalIssues: totalMechanicalDefects,
     timestamp: new Date().toISOString()
   };
 
