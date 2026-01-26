@@ -41,14 +41,16 @@ export interface ScoringConfig {
   sisThreshold: number;
   complianceThreshold: number;
   categories: AssetCategory[];
-  debugMode: boolean; // NEW: Toggle for on-screen debug log
+  debugMode: boolean;
+  exportPathPrefix: string; // Filename prefix for organization
 }
 
 export const DEFAULT_SCORING_CONFIG: ScoringConfig = {
   sisThreshold: 0.5,
   complianceThreshold: 85,
   categories: [...DEFAULT_CATEGORIES],
-  debugMode: false
+  debugMode: false,
+  exportPathPrefix: 'SITE_AUDIT'
 };
 
 export interface InspectionData {

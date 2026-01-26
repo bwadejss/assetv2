@@ -28,6 +28,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
     setCategories(categories.filter(c => c !== cat));
   };
 
+  const handleSave = () => {
+    const updatedConfig: ScoringConfig = {
+      sisThreshold: sis,
+      complianceThreshold: comp,
+      categories: categories,
+      debugMode: debugMode,
+      exportPathPrefix: prefix
+    };
+    onSave(updatedConfig);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
       <div className={`w-full max-w-md rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] ${darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'}`}>
@@ -68,7 +80,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
               />
             </div>
 
-            {/* Export Prefix */}
             <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
                 <FolderOpen size={12} /> Filename Prefix
@@ -81,7 +92,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                 className={`w-full p-4 rounded-xl border outline-none text-sm font-bold uppercase ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
               />
               <p className="text-[9px] opacity-40 font-bold uppercase leading-tight italic">
-                Note: Browsers always save to your default 'Downloads' folder. This prefix helps you search and group files later.
+                Note: Android always uses the default 'Downloads' folder. This prefix helps you search for files.
               </p>
             </div>
 
@@ -90,7 +101,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                 <Terminal size={18} className="text-blue-500" />
                 <div>
                   <div className="text-xs font-black uppercase tracking-widest">Debug Mode</div>
-                  <div className="text-[10px] opacity-60">Live on-screen logging</div>
                 </div>
               </div>
               <button 
@@ -111,10 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                   placeholder="New Category..."
                   className={`flex-1 p-3 rounded-xl border outline-none text-sm font-medium ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}
                 />
-                <button 
-                  onClick={addCategory}
-                  className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-all shadow-md"
-                >
+                <button onClick={addCategory} className="bg-blue-600 text-white p-3 rounded-xl shadow-md">
                   <Plus size={20} />
                 </button>
               </div>
@@ -125,7 +132,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                       <Tag size={12} className="opacity-40" />
                       <span className="text-xs font-bold truncate">{cat}</span>
                     </div>
-                    <button onClick={() => removeCategory(cat)} className="text-red-500 p-1 hover:bg-red-500/10 rounded-lg transition-colors">
+                    <button onClick={() => removeCategory(cat)} className="text-red-500 p-1 rounded-lg">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -136,13 +143,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
         </div>
 
         <div className="p-6 border-t border-slate-700/30 flex gap-3">
-           <button onClick={onClose} className={`flex-1 py-4 border rounded-xl font-bold ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+           <button onClick={onClose} className={`flex-1 py-4 border rounded-xl font-bold ${darkMode ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
             Cancel
           </button>
-          <button 
-            onClick={() => { onSave({ sisThreshold: sis, complianceThreshold: comp, categories, debugMode, exportPathPrefix: prefix }); onClose(); }}
-            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg"
-          >
+          <button onClick={handleSave} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg">
             Save All
           </button>
         </div>
