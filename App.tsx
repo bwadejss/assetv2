@@ -7,9 +7,9 @@ import { SettingsModal } from './components/SettingsModal.tsx';
 import { ConfirmModal } from './components/ConfirmModal.tsx';
 import { ShareModal } from './components/ShareModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Terminal, Share2 } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Terminal, Download } from 'lucide-react';
 
-const APP_VERSION = "v2.2.2-PRO-FIX";
+export const APP_VERSION = "v2.2.4-STABLE";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
@@ -108,7 +108,7 @@ const App: React.FC = () => {
             {view === 'SETUP' ? 'Site Inspector' : `${data.siteName} (${data.siteType})`}
           </h1>
           <p className="text-[10px] opacity-80 uppercase tracking-widest font-black">
-            {view === 'SETUP' ? APP_VERSION : `Compliance Audit • ${APP_VERSION}`}
+            {view === 'SETUP' ? APP_VERSION : `Build • ${APP_VERSION}`}
           </p>
         </div>
         
@@ -165,9 +165,9 @@ const App: React.FC = () => {
           <button 
             type="button"
             onClick={() => setShowShare(true)}
-            className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm tracking-widest transition-all active:scale-95 shadow-xl`}
+            className={`w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm tracking-widest transition-all active:scale-95 shadow-xl`}
           >
-            <Share2 size={20} /> GENERATE & SHARE REPORT
+            <Download size={20} /> GENERATE & DOWNLOAD REPORT
           </button>
         </div>
       )}

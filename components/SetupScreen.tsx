@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SiteType, InspectionData } from '../types.ts';
 import { ShieldCheck, User, MapPin, Factory } from 'lucide-react';
+import { APP_VERSION } from '../App.tsx';
 
 interface SetupScreenProps {
   onStart: (user: string, site: string, type: SiteType) => void;
@@ -8,8 +9,6 @@ interface SetupScreenProps {
   initialData?: InspectionData;
   onClear?: () => void;
 }
-
-const APP_VERSION = "v1.9.0";
 
 export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, initialData, onClear }) => {
   const [userName, setUserName] = useState(initialData?.userName || '');
