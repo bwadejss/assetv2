@@ -1,0 +1,9 @@
+{
+  "name": "industrial-asset-inspector",
+  "version": "2.5.0",
+  "private": true,
+  "description": "Static industrial inspection tool",
+  "scripts": {
+    "start": "echo 'No build step required. Open index.html directly.'"
+  }
+}
