@@ -5,19 +5,17 @@ import { ObservationForm } from './components/ObservationForm.tsx';
 import { ReadmeModal } from './components/ReadmeModal.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { ConfirmModal } from './components/ConfirmModal.tsx';
-import { FileGuideModal } from './components/FileGuideModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Share2, FolderOpen, CheckCircle2, Download } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Share2, CheckCircle2 } from 'lucide-react';
 
-const APP_VERSION = "v2.2.7-native-share";
+const APP_VERSION = "v2.2.8-clean-share";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
   const [exporting, setExporting] = useState(false);
   const [lastBlob, setLastBlob] = useState<Blob | null>(null);
   const [lastFilename, setLastFilename] = useState<string | null>(null);
-  const [showFileGuide, setShowFileGuide] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [showReadme, setShowReadme] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -109,13 +107,12 @@ const App: React.FC = () => {
     setExporting(true);
     try {
       const filename = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
-      // Trigger download first for redundancy
       const blob = await generateInspectionWordDoc(data, true); 
       setLastBlob(blob);
       setLastFilename(filename);
       logDebug(`SUCCESS: Export Complete -> ${filename}`);
       
-      // Auto-trigger share sheet if possible
+      // Auto-trigger share sheet
       setTimeout(() => handleShare(blob, filename), 500);
       
       setTimeout(() => setExporting(false), 1500);
@@ -141,8 +138,8 @@ const App: React.FC = () => {
         logDebug(`INFO: Share dismissed or failed - ${err}`);
       }
     } else {
-      logDebug("WARN: Native sharing not supported on this browser/profile");
-      setShowFileGuide(true);
+      logDebug("WARN: Native sharing not supported. Falling back to browser download.");
+      alert("Sharing is not supported on this browser profile. The file has been downloaded to your storage.");
     }
   };
 
@@ -171,14 +168,13 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className={`flex-1 overflow-y-auto relative z-10 ${view === 'DASHBOARD' ? (lastFilename ? 'pb-48' : 'pb-32') : 'pb-24'}`}>
+      <main className={`flex-1 overflow-y-auto relative z-10 ${view === 'DASHBOARD' ? (lastFilename ? 'pb-40' : 'pb-32') : 'pb-24'}`}>
         {view === 'SETUP' && (
           <SetupScreen 
             onStart={handleStart} 
             darkMode={darkMode} 
             initialData={data.siteName ? data : undefined} 
             onClear={() => setPendingHomeAction(true)} 
-            onShowLocate={() => setShowFileGuide(true)}
           />
         )}
         {view === 'DASHBOARD' && (
@@ -214,15 +210,9 @@ const App: React.FC = () => {
               </div>
               <button 
                 onClick={() => handleShare(lastBlob, lastFilename)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 font-black text-[9px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-indigo-600 text-white`}
+                className={`flex-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-indigo-600 text-white`}
               >
-                <Share2 size={14} /> Send to Teams
-              </button>
-              <button 
-                onClick={() => setShowFileGuide(true)}
-                className={`p-2 rounded-lg flex items-center justify-center transition-all ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}
-              >
-                <FolderOpen size={16} />
+                <Share2 size={14} /> Send to Teams / Outlook
               </button>
             </div>
           )}
@@ -241,14 +231,6 @@ const App: React.FC = () => {
           </button>
         </div>
       )}
-
-      <FileGuideModal 
-        isOpen={showFileGuide} 
-        onClose={() => setShowFileGuide(false)} 
-        lastFilename={lastFilename}
-        onDownloadAgain={handleExport}
-        darkMode={darkMode}
-      />
 
       <ConfirmModal 
         isOpen={pendingHomeAction} 

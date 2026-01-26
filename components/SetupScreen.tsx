@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { SiteType, InspectionData } from '../types.ts';
-import { ShieldCheck, User, MapPin, Factory, FolderOpen } from 'lucide-react';
+import { ShieldCheck, User, MapPin, Factory } from 'lucide-react';
 
 interface SetupScreenProps {
   onStart: (user: string, site: string, type: SiteType) => void;
   darkMode: boolean;
   initialData?: InspectionData;
   onClear?: () => void;
-  onShowLocate: () => void;
 }
 
-const APP_VERSION = "v2.2.4-file-system-focus";
+const APP_VERSION = "v2.2.8-clean-share";
 
-export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, initialData, onClear, onShowLocate }) => {
+export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, initialData, onClear }) => {
   const [userName, setUserName] = useState(initialData?.userName || '');
   const [siteName, setSiteName] = useState(initialData?.siteName || '');
   const [siteType, setSiteType] = useState<SiteType>(initialData?.siteType || SiteType.WTW);
@@ -96,14 +95,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, ini
           className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95"
         >
           {hasExistingData ? "Continue Audit" : "Begin Audit"}
-        </button>
-
-        <button 
-          type="button"
-          onClick={onShowLocate}
-          className={`w-full py-4 border-2 border-dashed rounded-xl flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-[0.2em] transition-all hover:bg-blue-500/5 ${darkMode ? 'border-slate-700 text-slate-500' : 'border-slate-300 text-slate-400'}`}
-        >
-          <FolderOpen size={16} /> How to find reports
         </button>
       </form>
 
