@@ -5,17 +5,18 @@ import { ObservationForm } from './components/ObservationForm.tsx';
 import { ReadmeModal } from './components/ReadmeModal.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { ConfirmModal } from './components/ConfirmModal.tsx';
+import { FileGuideModal } from './components/FileGuideModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Share2, CheckCircle2 } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Share2, CheckCircle2, Terminal, Info } from 'lucide-react';
 
-const APP_VERSION = "v2.2.8-clean-share";
+const APP_VERSION = "v2.3.0-handoff";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
   const [exporting, setExporting] = useState(false);
-  const [lastBlob, setLastBlob] = useState<Blob | null>(null);
   const [lastFilename, setLastFilename] = useState<string | null>(null);
+  const [showFileGuide, setShowFileGuide] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [showReadme, setShowReadme] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -39,7 +40,7 @@ const App: React.FC = () => {
 
   const logDebug = useCallback((msg: string) => {
     console.log(`[DEBUG] ${msg}`);
-    setDebugLogs(prev => [`${new Date().toLocaleTimeString()}: ${msg}`, ...prev].slice(0, 15));
+    setDebugLogs(prev => [`${new Date().toLocaleTimeString().split(' ')[0]} - ${msg}`, ...prev].slice(0, 30));
   }, []);
 
   useEffect(() => {
@@ -48,6 +49,7 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   const handleStart = (userName: string, siteName: string, siteType: SiteType) => {
+    logDebug(`START: User=${userName} Site=${siteName}`);
     setData(prev => ({ ...prev, userName, siteName, siteType, date: new Date().toLocaleDateString() }));
     setView('DASHBOARD');
   };
@@ -96,24 +98,24 @@ const App: React.FC = () => {
       compliantCounts: {},
       observations: [],
     }));
-    setLastBlob(null);
     setLastFilename(null);
     setView('SETUP');
     setPendingHomeAction(false);
   };
 
   const handleExport = async () => {
-    logDebug(`EVENT: Export Request`);
+    logDebug(`EXPORT: Requested for ${data.siteName}`);
     setExporting(true);
     try {
-      const filename = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
-      const blob = await generateInspectionWordDoc(data, true); 
-      setLastBlob(blob);
+      const filename = `${data.siteName.replace(/\s+/g, '_')}_Report.docx`;
+      // triggerDownload = true forces the browser to handle the file, 
+      // which generates the system notification notification.
+      await generateInspectionWordDoc(data, true); 
       setLastFilename(filename);
-      logDebug(`SUCCESS: Export Complete -> ${filename}`);
+      logDebug(`SUCCESS: File sent to browser downloads.`);
       
-      // Auto-trigger share sheet
-      setTimeout(() => handleShare(blob, filename), 500);
+      // Immediately show the handoff guide to tell them what to do with the notification
+      setShowFileGuide(true);
       
       setTimeout(() => setExporting(false), 1500);
     } catch (error) {
@@ -123,25 +125,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleShare = async (blob: Blob, filename: string) => {
-    const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: 'Industrial Inspection Report',
-          text: `Inspection report for ${data.siteName}`
-        });
-        logDebug("SUCCESS: Share sheet opened");
-      } catch (err) {
-        logDebug(`INFO: Share dismissed or failed - ${err}`);
-      }
-    } else {
-      logDebug("WARN: Native sharing not supported. Falling back to browser download.");
-      alert("Sharing is not supported on this browser profile. The file has been downloaded to your storage.");
-    }
-  };
+  const clearLogs = () => setDebugLogs([]);
 
   return (
     <div className={`min-h-screen flex flex-col max-w-lg mx-auto shadow-2xl overflow-hidden relative border-x transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'}`}>
@@ -200,19 +184,19 @@ const App: React.FC = () => {
 
       {view === 'DASHBOARD' && (
         <div className={`p-4 fixed bottom-0 left-0 right-0 max-w-lg mx-auto z-40 border-t space-y-2 transition-colors duration-300 ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-white border-slate-200'}`}>
-          {lastFilename && lastBlob && (
-            <div className={`flex gap-2 mb-1 p-2 rounded-xl animate-in slide-in-from-bottom-2 duration-300 ${darkMode ? 'bg-blue-600/10' : 'bg-blue-50'}`}>
+          {lastFilename && (
+            <div className={`flex gap-2 mb-1 p-2 rounded-xl animate-in slide-in-from-bottom-2 duration-300 ${darkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
               <div className="flex-1 flex items-center gap-2 px-2 overflow-hidden">
                 <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
                 <span className={`text-[10px] font-black uppercase tracking-tight truncate ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Report Ready
+                  {lastFilename}
                 </span>
               </div>
               <button 
-                onClick={() => handleShare(lastBlob, lastFilename)}
-                className={`flex-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-indigo-600 text-white`}
+                onClick={() => setShowFileGuide(true)}
+                className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-indigo-600 text-white`}
               >
-                <Share2 size={14} /> Send to Teams / Outlook
+                <Info size={14} /> How to Share
               </button>
             </div>
           )}
@@ -224,13 +208,39 @@ const App: React.FC = () => {
             className={`w-full ${exporting ? 'bg-slate-600' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-5 rounded-xl flex items-center justify-center gap-3 font-black text-xs tracking-[0.2em] transition-all active:scale-95 shadow-xl`}
           >
             {exporting ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> EXPORTING...</>
+              <><Loader2 className="w-5 h-5 animate-spin" /> GENERATING...</>
             ) : (
-              <><ClipboardCheck className="w-5 h-5" /> {lastFilename ? 'RE-GENERATE REPORT' : 'GENERATE FORMATTED DOCX'}</>
+              <><ClipboardCheck className="w-5 h-5" /> {lastFilename ? 'RE-GENERATE REPORT' : 'GENERATE SITE REPORT'}</>
             )}
           </button>
         </div>
       )}
+
+      {data.config.debugMode && (
+        <div className="fixed top-20 left-4 right-4 max-w-[calc(100%-2rem)] max-h-48 z-[200] bg-black/90 text-emerald-400 p-3 rounded-xl border border-emerald-500/30 font-mono text-[10px] overflow-hidden flex flex-col shadow-2xl backdrop-blur-md">
+          <div className="flex justify-between items-center mb-2 border-b border-emerald-500/20 pb-1">
+            <div className="flex items-center gap-2">
+              <Terminal size={12} />
+              <span className="font-bold tracking-widest">LIVE DEBUG LOG</span>
+            </div>
+            <button onClick={clearLogs} className="hover:text-white uppercase">{"[Clear]"}</button>
+          </div>
+          <div className="overflow-y-auto flex-1 space-y-1">
+            {debugLogs.length === 0 ? (
+              <p className="opacity-40 italic">Waiting for events...</p>
+            ) : (
+              debugLogs.map((log, i) => <div key={i} className="whitespace-nowrap">{"- "}{log}</div>)
+            )}
+          </div>
+        </div>
+      )}
+
+      <FileGuideModal 
+        isOpen={showFileGuide} 
+        onClose={() => setShowFileGuide(false)} 
+        lastFilename={lastFilename}
+        darkMode={darkMode}
+      />
 
       <ConfirmModal 
         isOpen={pendingHomeAction} 
@@ -254,7 +264,10 @@ const App: React.FC = () => {
       {showSettings && (
         <SettingsModal 
           config={data.config} 
-          onSave={(newConfig) => setData(prev => ({ ...prev, config: newConfig }))} 
+          onSave={(newConfig) => {
+            logDebug(`SETTINGS: Config updated. Debug=${newConfig.debugMode}`);
+            setData(prev => ({ ...prev, config: newConfig }));
+          }} 
           onClose={() => setShowSettings(false)} 
           darkMode={darkMode} 
         />
