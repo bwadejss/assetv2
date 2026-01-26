@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ScoringConfig, AssetCategory } from '../types.ts';
-import { X, Sliders, Plus, Trash2, Tag, Terminal, FolderOpen } from 'lucide-react';
+import { X, Sliders, Plus, Trash2, Tag, Terminal } from 'lucide-react';
 
 interface SettingsModalProps {
   config: ScoringConfig;
@@ -14,7 +14,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
   const [comp, setComp] = useState(config.complianceThreshold);
   const [categories, setCategories] = useState<AssetCategory[]>([...config.categories]);
   const [debugMode, setDebugMode] = useState(config.debugMode);
-  const [prefix, setPrefix] = useState(config.exportPathPrefix || 'SITE_AUDIT');
   const [newCat, setNewCat] = useState('');
 
   const addCategory = () => {
@@ -26,18 +25,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
 
   const removeCategory = (cat: string) => {
     setCategories(categories.filter(c => c !== cat));
-  };
-
-  const handleSave = () => {
-    const updatedConfig: ScoringConfig = {
-      sisThreshold: sis,
-      complianceThreshold: comp,
-      categories: categories,
-      debugMode: debugMode,
-      exportPathPrefix: prefix
-    };
-    onSave(updatedConfig);
-    onClose();
   };
 
   return (
@@ -80,24 +67,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
               />
             </div>
 
-            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                <FolderOpen size={12} /> Filename Prefix
-              </label>
-              <input 
-                type="text" 
-                value={prefix}
-                onChange={e => setPrefix(e.target.value.replace(/[^a-z0-9_]/gi, ''))}
-                placeholder="e.g. MAINTENANCE_REPORTS"
-                className={`w-full p-4 rounded-xl border outline-none text-sm font-bold uppercase ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
-              />
-            </div>
-
+            {/* Debug Toggle */}
             <div className={`p-4 rounded-xl border flex items-center justify-between ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
               <div className="flex items-center gap-3">
                 <Terminal size={18} className="text-blue-500" />
                 <div>
                   <div className="text-xs font-black uppercase tracking-widest">Debug Mode</div>
+                  <div className="text-[10px] opacity-60">Live on-screen logging</div>
                 </div>
               </div>
               <button 
@@ -118,7 +94,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                   placeholder="New Category..."
                   className={`flex-1 p-3 rounded-xl border outline-none text-sm font-medium ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}
                 />
-                <button onClick={addCategory} className="bg-blue-600 text-white p-3 rounded-xl shadow-md">
+                <button 
+                  onClick={addCategory}
+                  className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-all shadow-md"
+                >
                   <Plus size={20} />
                 </button>
               </div>
@@ -129,7 +108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                       <Tag size={12} className="opacity-40" />
                       <span className="text-xs font-bold truncate">{cat}</span>
                     </div>
-                    <button onClick={() => removeCategory(cat)} className="text-red-500 p-1 rounded-lg">
+                    <button onClick={() => removeCategory(cat)} className="text-red-500 p-1 hover:bg-red-500/10 rounded-lg transition-colors">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -140,10 +119,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
         </div>
 
         <div className="p-6 border-t border-slate-700/30 flex gap-3">
-           <button onClick={onClose} className={`flex-1 py-4 border rounded-xl font-bold ${darkMode ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
+           <button onClick={onClose} className={`flex-1 py-4 border rounded-xl font-bold ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
             Cancel
           </button>
-          <button onClick={handleSave} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg">
+          <button 
+            onClick={() => { onSave({ sisThreshold: sis, complianceThreshold: comp, categories, debugMode }); onClose(); }}
+            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg"
+          >
             Save All
           </button>
         </div>

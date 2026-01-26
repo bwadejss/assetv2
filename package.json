@@ -1,9 +1,24 @@
 {
   "name": "industrial-asset-inspector",
-  "version": "2.5.0",
   "private": true,
-  "description": "Static industrial inspection tool",
+  "version": "1.4.0",
+  "type": "module",
   "scripts": {
-    "start": "echo 'No build step required. Open index.html directly.'"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "lucide-react": "^0.460.0",
+    "docx": "^9.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
   }
 }
