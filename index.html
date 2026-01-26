@@ -9,7 +9,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Industrial Asset Inspector</title>
     
-    <!-- Tailwind CDN for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -17,10 +16,7 @@
         theme: {
           extend: {
             colors: {
-              slate: {
-                850: '#0f172a',
-                950: '#020617'
-              }
+              slate: { 850: '#0f172a', 950: '#020617' }
             }
           }
         }
@@ -28,7 +24,7 @@
     </script>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="./index.css">
     
     <style>
       body { 
@@ -38,12 +34,23 @@
         transition: background-color 0.3s ease;
         background-color: #020617;
       }
-      .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-      ::-webkit-scrollbar { display: none; }
-      .app-container { -ms-overflow-style: none; scrollbar-width: none; }
+      #root:empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        color: #475569;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+      }
+      #root:empty::after {
+        content: "INITIALIZING SYSTEM...";
+        animation: pulse 1.5s infinite;
+      }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
 
-    <!-- Import Map for direct browser ESM dependencies -->
     <script type="importmap">
 {
   "imports": {
@@ -57,15 +64,55 @@
 }
 </script>
 
-    <!-- Babel Standalone: Transpiles TSX in the browser for zero-build deployment -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <link rel="stylesheet" href="/index.css">
 </head>
 <body class="dark bg-slate-950 text-slate-100">
     <div id="root"></div>
-    
-    <!-- data-type="module" allows using ESM imports inside the transpiled script -->
-    <script type="text/babel" data-type="module" data-presets="typescript,react" src="index.tsx"></script>
+
+    <script type="text/babel">
+      /**
+       * ZERO-BUILD LOADER
+       * Fetches TSX files as text to bypass GitHub MIME type errors (application/octet-stream).
+       * Transpiles on-the-fly via Babel and executes.
+       */
+      async function loadAndExecute(url) {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status} - ${url}`);
+          const code = await response.text();
+          
+          // Transpile TSX to JS
+          const { code: transpiledCode } = Babel.transform(code, {
+            presets: ['typescript', 'react'],
+            filename: url,
+            plugins: [
+              // Transforms imports to use the browser's ESM loader + importmap
+              ['transform-modules-umd', { noInterop: true }]
+            ]
+          });
+
+          // Create a blob and execute it as a module
+          const script = document.createElement('script');
+          script.type = 'module';
+          script.textContent = transpiledCode;
+          document.body.appendChild(script);
+        } catch (err) {
+          console.error("Critical Load Failure:", err);
+          document.getElementById('root').innerHTML = `
+            <div style="padding: 20px; color: #ef4444; font-family: monospace; font-size: 12px;">
+              [SYSTEM ERROR]<br/>FAILED TO LOAD: ${url}<br/><br/>${err.message}
+            </div>`;
+        }
+      }
+
+      // Start the app chain
+      // Note: We load index.tsx which handles its own imports via esm.sh
+      // To bypass MIME check for the whole app, we use data-type="module" trick on the Babel script
+    </script>
+
+    <!-- This approach is more compatible with standard Babel standalone for multi-file -->
+    <script type="text/babel" data-type="module" data-presets="typescript,react" src="./index.tsx"></script>
 <script type="module" src="/index.tsx"></script>
 </body>
 </html>
