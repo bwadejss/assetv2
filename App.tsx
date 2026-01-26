@@ -8,14 +8,15 @@ import { ConfirmModal } from './components/ConfirmModal.tsx';
 import { FileGuideModal } from './components/FileGuideModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Share2, CheckCircle2, Terminal, Info } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info, Download } from 'lucide-react';
 
-const APP_VERSION = "v2.3.0-handoff";
+const APP_VERSION = "v2.4.0";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
   const [exporting, setExporting] = useState(false);
   const [lastFilename, setLastFilename] = useState<string | null>(null);
+  const [lastBlob, setLastBlob] = useState<Blob | null>(null);
   const [showFileGuide, setShowFileGuide] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [showReadme, setShowReadme] = useState(false);
@@ -99,24 +100,36 @@ const App: React.FC = () => {
       observations: [],
     }));
     setLastFilename(null);
+    setLastBlob(null);
     setView('SETUP');
     setPendingHomeAction(false);
+  };
+
+  const triggerDownload = (blob: Blob, filename: string) => {
+    logDebug(`DOWNLOAD: Triggering browser download for ${filename}`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   const handleExport = async () => {
     logDebug(`EXPORT: Requested for ${data.siteName}`);
     setExporting(true);
     try {
-      const filename = `${data.siteName.replace(/\s+/g, '_')}_Report.docx`;
-      // triggerDownload = true forces the browser to handle the file, 
-      // which generates the system notification notification.
-      await generateInspectionWordDoc(data, true); 
+      const filename = `${data.siteName.replace(/\s+/g, '_')}_Report_${data.date.replace(/\//g, '-')}.docx`;
+      const blob = await generateInspectionWordDoc(data, false); 
+      setLastBlob(blob);
       setLastFilename(filename);
-      logDebug(`SUCCESS: File sent to browser downloads.`);
       
-      // Immediately show the handoff guide to tell them what to do with the notification
+      triggerDownload(blob, filename);
+      
+      logDebug(`SUCCESS: Blob created and download triggered.`);
       setShowFileGuide(true);
-      
       setTimeout(() => setExporting(false), 1500);
     } catch (error) {
       logDebug(`ERROR: Export failed - ${error}`);
@@ -239,6 +252,7 @@ const App: React.FC = () => {
         isOpen={showFileGuide} 
         onClose={() => setShowFileGuide(false)} 
         lastFilename={lastFilename}
+        onRetry={() => lastBlob && lastFilename && triggerDownload(lastBlob, lastFilename)}
         darkMode={darkMode}
       />
 
