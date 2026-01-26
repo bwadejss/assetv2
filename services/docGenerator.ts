@@ -1,7 +1,19 @@
 import * as docx from 'docx';
 import { AssetCategory, InspectionData, Observation, calculateCompliance, RiskLevel, NON_MAINTENANCE_CATEGORY } from '../types.ts';
 
-const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun } = docx;
+const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun, TableLayoutType, BorderStyle } = docx;
+
+/**
+ * Sanitizes strings to ensure they don't contain characters that break the OpenXML schema.
+ * Word Desktop and Teams are extremely sensitive to control characters in XML.
+ */
+function sanitize(str: any): string {
+  if (str === undefined || str === null) return "";
+  const text = String(str);
+  // Removes control characters that are invalid in XML (except tab, cr, lf)
+  // and replaces common problematic characters.
+  return text.replace(/[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD\u10000-\u10FFFF]/g, "");
+}
 
 function base64ToUint8Array(base64: string): Uint8Array | null {
   try {
@@ -29,8 +41,8 @@ const getRiskColor = (risk: RiskLevel) => {
   }
 };
 
-// Use "Arial" for universal system compatibility
-const REPORT_FONT = "Arial";
+// Calibri is the most native Microsoft Word font, reducing recovery prompts.
+const REPORT_FONT = "Calibri";
 
 export const generateInspectionWordDoc = async (data: InspectionData, triggerDownload = false): Promise<Blob> => {
   const stats = calculateCompliance(data);
@@ -40,19 +52,16 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
   
   const totalNonMaintDefects = nonMaintObs.reduce((s, o) => s + o.nonComplianceCount, 0);
 
-  // Helper to ensure text is always a valid string for Word XML to prevent "Unreadable Content" errors
-  const safeText = (val: any) => (val === undefined || val === null) ? "" : String(val);
-
   const generateRow = (label: string, value: any, isHeader = false) => new TableRow({
     children: [
       new TableCell({ 
-        children: [new Paragraph({ children: [new TextRun({ text: safeText(label), bold: true, size: 20, font: REPORT_FONT })] })], 
-        width: { size: 40, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: sanitize(label), bold: true, size: 22, font: REPORT_FONT })] })], 
+        width: { size: 4000, type: WidthType.DXA },
         shading: isHeader ? { fill: "F2F2F2" } : undefined
       }),
       new TableCell({ 
-        children: [new Paragraph({ children: [new TextRun({ text: safeText(value), size: 20, font: REPORT_FONT })] })], 
-        width: { size: 60, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: sanitize(value), size: 22, font: REPORT_FONT })] })], 
+        width: { size: 6000, type: WidthType.DXA },
       }),
     ]
   });
@@ -61,18 +70,19 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
     new Paragraph({
       alignment: AlignmentType.CENTER,
       heading: HeadingLevel.HEADING_1,
-      spacing: { after: 200 },
-      children: [new TextRun({ text: `${safeText(data.siteName)} (${safeText(data.siteType)})`, bold: true, size: 36, font: REPORT_FONT })]
+      spacing: { after: 240 },
+      children: [new TextRun({ text: `${sanitize(data.siteName)} (${sanitize(data.siteType)})`, bold: true, size: 36, font: REPORT_FONT })]
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 400 },
-      children: [new TextRun({ text: `MAINTENANCE COMPLIANCE AUDIT • ${safeText(data.date)}`, size: 18, color: "555555", bold: true, font: REPORT_FONT })]
+      spacing: { after: 480 },
+      children: [new TextRun({ text: `MAINTENANCE COMPLIANCE AUDIT • ${sanitize(data.date)}`, size: 18, color: "555555", bold: true, font: REPORT_FONT })]
     }),
 
     new Paragraph({ text: "1. Audit Summary", heading: HeadingLevel.HEADING_2, spacing: { after: 200 } }),
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
       rows: [
         generateRow("Inspector", data.userName),
         generateRow("Site Reference", data.siteName),
@@ -89,6 +99,7 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
     new Paragraph({ text: "2. Compliance Breakdown by Category", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
       rows: [
         new TableRow({
           children: [
@@ -103,10 +114,10 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
           const fail = data.observations.filter(o => o.category === cat).length;
           return new TableRow({
             children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: safeText(cat), font: REPORT_FONT })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: safeText(pass), font: REPORT_FONT })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: safeText(fail), font: REPORT_FONT })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: safeText(pass + fail), font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(cat), font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(pass), font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(fail), font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(pass + fail), font: REPORT_FONT })] })] }),
             ]
           });
         })
@@ -118,25 +129,26 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
 
   const addObsToDoc = async (obs: Observation, index: number) => {
     children.push(new Paragraph({ 
-      text: `Observation #${index + 1}: ${safeText(obs.category)}`, 
+      text: `Observation #${index + 1}: ${sanitize(obs.category)}`, 
       heading: HeadingLevel.HEADING_3, 
       spacing: { before: 300, after: 150 } 
     }));
 
     children.push(new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
       rows: [
         new TableRow({
           children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Asset Name / Description", bold: true, font: REPORT_FONT })] })], width: { size: 30, type: WidthType.PERCENTAGE } }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: safeText(obs.assetName), font: REPORT_FONT })] })] })
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Asset Name / Description", bold: true, font: REPORT_FONT })] })], width: { size: 3000, type: WidthType.DXA } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(obs.assetName), font: REPORT_FONT })] })], width: { size: 7000, type: WidthType.DXA } })
           ]
         }),
         generateRow("Asset ID / Barcode", obs.assetId),
         new TableRow({
           children: [
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Risk Level", bold: true, font: REPORT_FONT })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: safeText(obs.risk).toUpperCase(), color: getRiskColor(obs.risk), bold: true, font: REPORT_FONT })] })] })
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(obs.risk).toUpperCase(), color: getRiskColor(obs.risk), bold: true, font: REPORT_FONT })] })] })
           ]
         }),
         generateRow("Defect Count", obs.nonComplianceCount),
@@ -144,26 +156,26 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
         generateRow("Findings", obs.feedbackNotes),
         generateRow("Short Term Fix", obs.shortTermFix),
         generateRow("Long Term Fix", obs.longTermFix),
-        generateRow("Report Feedback", ""),
-        generateRow("Action Owner", ""),
+        generateRow("Action Owner", obs.actionOwner),
       ],
     }));
 
     if (obs.photos.length > 0) {
-      const imgRuns: any[] = [];
+      const imgParts: any[] = [];
       for (const p of obs.photos) {
         const uint8 = base64ToUint8Array(p);
         if (uint8) {
-          // Casting to any to solve the TypeScript union disambiguation issue with esm.sh types
-          imgRuns.push(new ImageRun({ 
+          imgParts.push(new ImageRun({ 
             data: uint8 as any, 
-            transformation: { width: 180, height: 135 } 
+            transformation: { width: 220, height: 165 },
+            type: "png" // Force standard type mapping
           } as any));
-          imgRuns.push(new TextRun({ text: "  " }));
+          // Word Online handles wrapping better with a TextRun separator
+          imgParts.push(new TextRun({ text: "  " }));
         }
       }
-      if (imgRuns.length > 0) {
-        children.push(new Paragraph({ children: imgRuns, spacing: { before: 100, after: 200 } }));
+      if (imgParts.length > 0) {
+        children.push(new Paragraph({ children: imgParts, spacing: { before: 200, after: 400 } }));
       }
     }
   };
@@ -176,14 +188,15 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
   }
 
   const doc = new Document({ 
-    creator: "Site Inspector App",
-    title: `Inspection Report - ${data.siteName}`,
-    description: `Asset audit conducted by ${data.userName} on ${data.date}`,
+    creator: "Site Inspector",
+    title: sanitize(data.siteName),
+    description: "Asset Inspection Audit",
     styles: {
       default: {
         document: {
           run: {
             font: REPORT_FONT,
+            size: 22,
           },
         },
       },
@@ -197,7 +210,7 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${data.siteName}_Report_${data.date.replace(/\//g, '-')}.docx`;
+    link.download = `${data.siteName.replace(/\s+/g, '_')}_Report_${data.date.replace(/\//g, '-')}.docx`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
