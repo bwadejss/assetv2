@@ -91,9 +91,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                 placeholder="e.g. MAINTENANCE_REPORTS"
                 className={`w-full p-4 rounded-xl border outline-none text-sm font-bold uppercase ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
               />
-              <p className="text-[9px] opacity-40 font-bold uppercase leading-tight italic">
-                Note: Android always uses the default 'Downloads' folder. This prefix helps you search for files.
-              </p>
             </div>
 
             <div className={`p-4 rounded-xl border flex items-center justify-between ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>

@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
 import { InspectionData } from '../types.ts';
-import { X, Share2, Loader2, AlertCircle, Send, CheckCircle2, Download, Info } from 'lucide-react';
+import { X, Share2, Loader2, AlertCircle, Send, CheckCircle2, Download, Info, ShieldAlert } from 'lucide-react';
 import { generateInspectionWordDoc } from '../services/docGenerator.ts';
 
 interface ShareModalProps {
@@ -15,17 +15,24 @@ type ShareStage = 'IDLE' | 'GENERATING' | 'READY' | 'ERROR';
 export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, darkMode }) => {
   const [stage, setStage] = useState<ShareStage>('IDLE');
   const [error, setError] = useState<string | null>(null);
+  const [isSandbox, setIsSandbox] = useState(false);
   
-  // Ref for the File object to ensure it is ready BEFORE the click
   const preparedFileRef = useRef<File | null>(null);
-  const shareButtonRef = useRef<HTMLButtonElement>(null);
+  const nativeBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Sync listener to preserve user activation chain for Android
-  useEffect(() => {
-    const btn = shareButtonRef.current;
-    if (!btn || !isOpen) return;
+  // Detect sandbox environments (like the preview window)
+  useLayoutEffect(() => {
+    if (window.self !== window.top) {
+      setIsSandbox(true);
+    }
+  }, []);
 
-    const handleShareClick = () => {
+  // Use a raw native listener to guarantee "User Activation" for navigator.share
+  useLayoutEffect(() => {
+    const btn = nativeBtnRef.current;
+    if (!btn || stage !== 'READY') return;
+
+    const handleHardClick = () => {
       const file = preparedFileRef.current;
       if (!file) return;
 
@@ -34,24 +41,27 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
         return;
       }
 
-      // No 'await' before share - call it instantly
-      navigator.share({ 
+      const shareData = {
         files: [file],
-        title: file.name
-      }).then(() => {
+        title: 'Inspection Report',
+        text: `Report for ${data.siteName}`
+      };
+
+      // Direct call - no promises/async before this line
+      navigator.share(shareData).then(() => {
         onClose();
       }).catch((err) => {
         if (err.name === 'AbortError') return;
-        console.error("Android Share Failed:", err);
+        console.error("Native Share Fail:", err);
         handleDownload();
-        setError(`System block: ${err.message}. Downloaded to local folder instead.`);
+        setError(`System Block: ${err.message}. Saving to Downloads instead.`);
         setStage('ERROR');
       });
     };
 
-    btn.addEventListener('click', handleShareClick);
-    return () => btn.removeEventListener('click', handleShareClick);
-  }, [isOpen, stage]);
+    btn.addEventListener('click', handleHardClick);
+    return () => btn.removeEventListener('click', handleHardClick);
+  }, [stage, isOpen]);
 
   if (!isOpen) return null;
 
@@ -64,13 +74,19 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
       const site = data.siteName.replace(/[^a-z0-9]/gi, '_');
       const filename = `${prefix}_${site}.docx`;
       
-      preparedFileRef.current = new File([blob], filename, { 
+      const file = new File([blob], filename, { 
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
       });
+
+      // Verify if the system can actually share this specific file
+      if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+        console.warn("MIME type potentially unsupported for sharing");
+      }
       
+      preparedFileRef.current = file;
       setStage('READY');
     } catch (err: any) {
-      setError("Failed to compile document.");
+      setError("Document generation failed.");
       setStage('ERROR');
     }
   };
@@ -88,93 +104,93 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data, d
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
-  const reset = () => {
-    setStage('IDLE');
-    preparedFileRef.current = null;
-    setError(null);
-  };
-
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div className={`w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border ${darkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
         <div className="p-6 border-b border-slate-700/30 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Share2 size={18} className="text-indigo-500" />
-            <h2 className="text-xs font-black uppercase tracking-[0.2em]">Android Export</h2>
+            <h2 className="text-xs font-black uppercase tracking-[0.2em]">Export Report</h2>
           </div>
           <button onClick={onClose} className="p-2 opacity-50"><X size={20} /></button>
         </div>
 
         <div className="p-6 space-y-4">
-          <div className={stage === 'IDLE' ? 'block' : 'hidden'}>
-            <div className="text-center space-y-2 mb-6">
-              <p className="text-sm font-bold opacity-80 uppercase tracking-tight">Step 1: Build Report</p>
+          {isSandbox && (
+            <div className={`p-3 rounded-xl border flex items-start gap-2 ${darkMode ? 'bg-amber-900/20 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              <ShieldAlert size={16} className="shrink-0 mt-0.5" />
+              <p className="text-[10px] font-bold leading-tight uppercase">
+                Preview Sandbox detected. Native Sharing will only work on a real device.
+              </p>
             </div>
-            <button 
-              onClick={handlePrepare}
-              className="w-full p-6 rounded-2xl bg-blue-600 text-white flex items-center gap-4 shadow-lg active:scale-95"
-            >
-              <Loader2 size={20} className="text-white shrink-0" />
-              <div className="text-left">
-                <div className="font-black text-sm uppercase tracking-tight">Generate File</div>
-                <div className="text-[10px] opacity-60 uppercase font-bold">Compressing Images...</div>
-              </div>
-            </button>
-          </div>
+          )}
 
-          <div className={stage === 'GENERATING' ? 'block' : 'hidden'}>
+          {stage === 'IDLE' && (
+            <div className="animate-in fade-in slide-in-from-bottom-2">
+              <button 
+                onClick={handlePrepare}
+                className="w-full p-8 rounded-2xl bg-blue-600 text-white flex flex-col items-center gap-3 shadow-lg active:scale-95 transition-transform"
+              >
+                <div className="bg-white/20 p-3 rounded-2xl"><Loader2 size={24} /></div>
+                <div className="text-center">
+                  <div className="font-black text-sm uppercase tracking-widest">Compile Document</div>
+                  <div className="text-[9px] opacity-60 font-black uppercase tracking-[0.2em] mt-1">Processing photos...</div>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {stage === 'GENERATING' && (
             <div className="py-12 flex flex-col items-center text-center space-y-4">
               <Loader2 size={48} className="text-blue-500 animate-spin" />
-              <p className="text-sm font-black uppercase tracking-widest">Building Document</p>
+              <p className="text-xs font-black uppercase tracking-widest animate-pulse">Building .docx File</p>
             </div>
-          </div>
+          )}
 
-          <div className={stage === 'READY' ? 'block' : 'hidden'}>
-            <div className="py-4 flex flex-col items-center text-center space-y-6">
-              <CheckCircle2 size={40} className="text-emerald-500" />
-              <div>
-                <p className="text-sm font-black uppercase tracking-widest text-emerald-500">Step 2: Share</p>
+          {stage === 'READY' && (
+            <div className="py-2 flex flex-col items-center text-center space-y-6 animate-in zoom-in-95">
+              <div className="bg-emerald-500/10 p-5 rounded-full border border-emerald-500/20">
+                <CheckCircle2 size={48} className="text-emerald-500" />
               </div>
-
+              
               <div className="w-full space-y-3">
                 <button 
-                  ref={shareButtonRef}
-                  className="w-full py-5 rounded-2xl bg-indigo-600 text-white flex items-center justify-center gap-3 font-black text-xs tracking-[0.2em] shadow-xl active:scale-95"
+                  ref={nativeBtnRef}
+                  className="w-full py-5 rounded-2xl bg-indigo-600 text-white flex items-center justify-center gap-3 font-black text-sm tracking-widest shadow-xl active:scale-95"
                 >
-                  <Send size={18} /> OPEN SHARE MENU
+                  <Send size={18} /> SEND REPORT
                 </button>
 
                 <button 
                   onClick={handleDownload}
                   className={`w-full py-4 rounded-2xl border flex items-center justify-center gap-3 font-black text-[10px] tracking-widest ${darkMode ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}
                 >
-                  <Download size={14} /> DOWNLOAD AS BACKUP
+                  <Download size={14} /> DOWNLOAD LOCAL COPY
                 </button>
               </div>
             </div>
-          </div>
+          )}
 
           {stage === 'ERROR' && (
-            <div className="space-y-4 text-center">
-              <AlertCircle size={32} className="text-red-500 mx-auto" />
-              <p className="text-[10px] opacity-80 uppercase font-bold leading-relaxed px-4">{error}</p>
-              <button onClick={reset} className="w-full py-4 text-[10px] font-black uppercase tracking-widest bg-slate-700 text-white rounded-xl">
-                Reset
+            <div className="space-y-4">
+              <div className={`p-4 rounded-2xl border flex items-start gap-3 ${darkMode ? 'bg-red-950/20 border-red-500/20 text-red-200' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <AlertCircle size={20} className="shrink-0 text-red-500" />
+                <p className="text-[10px] font-bold leading-relaxed">{error}</p>
+              </div>
+              <button onClick={() => setStage('IDLE')} className="w-full py-4 text-[10px] font-black uppercase tracking-widest bg-slate-700 text-white rounded-xl active:scale-95">
+                Try Again
               </button>
             </div>
           )}
         </div>
 
         <div className={`p-6 border-t ${darkMode ? 'border-slate-700 bg-slate-850' : 'border-slate-200 bg-slate-50'}`}>
-          <div className="flex items-start gap-2 mb-4 opacity-50">
+          <div className="flex items-start gap-2 opacity-50">
             <Info size={12} className="shrink-0 mt-0.5" />
             <p className="text-[9px] font-bold leading-tight uppercase">
-              Notice: Browsers save to "Downloads". Use the Filename Prefix in Settings to stay organized.
+              Notice: Sharing works best with Teams, Outlook, and Gmail.
             </p>
           </div>
-          <button onClick={onClose} className="w-full py-2 text-xs font-black uppercase tracking-widest opacity-40">
-            Cancel
-          </button>
         </div>
       </div>
     </div>

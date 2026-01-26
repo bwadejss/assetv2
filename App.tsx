@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SetupScreen } from './components/SetupScreen.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { ObservationForm } from './components/ObservationForm.tsx';
@@ -6,15 +6,13 @@ import { ReadmeModal } from './components/ReadmeModal.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { ConfirmModal } from './components/ConfirmModal.tsx';
 import { ShareModal } from './components/ShareModal.tsx';
-import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG, ScoringConfig } from './types.ts';
-import { generateInspectionWordDoc } from './services/docGenerator.ts';
+import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
 import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, Terminal, Share2 } from 'lucide-react';
 
-const APP_VERSION = "v2.2.1-fixed";
+const APP_VERSION = "v2.2.2-PRO-FIX";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
-  const [exporting, setExporting] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [showReadme, setShowReadme] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -54,7 +52,6 @@ const App: React.FC = () => {
   };
 
   const handleUpdateCompliant = (category: AssetCategory, delta: number) => {
-    logDebug(`EVENT: Pass count changed for ${category}`);
     setData(prev => ({
       ...prev,
       compliantCounts: { ...prev.compliantCounts, [category]: Math.max(0, (prev.compliantCounts[category] || 0) + delta) }
@@ -62,14 +59,12 @@ const App: React.FC = () => {
   };
 
   const handleOpenForm = (category: AssetCategory, existingObs?: Observation) => {
-    logDebug(`EVENT: Form Open [${category}]`);
     setActiveCategory(category);
     setEditingObservation(existingObs || null);
     setView('OBSERVATION_FORM');
   };
 
   const handleSaveObservation = (observation: Observation) => {
-    logDebug(`EVENT: Saved Observation ${observation.id}`);
     setData(prev => {
       const isEdit = prev.observations.find(o => o.id === observation.id);
       const newObs = isEdit 
@@ -83,7 +78,6 @@ const App: React.FC = () => {
 
   const confirmDelete = () => {
     if (!pendingDeleteId) return;
-    logDebug(`ACTION: DELETING ID ${pendingDeleteId}`);
     setData(prev => ({
       ...prev,
       observations: prev.observations.filter(o => o.id !== pendingDeleteId)
@@ -92,7 +86,6 @@ const App: React.FC = () => {
   };
 
   const confirmHome = () => {
-    logDebug(`ACTION: RESETTING APP TO MENU`);
     setData(prev => ({
       ...prev,
       userName: '',
@@ -104,20 +97,6 @@ const App: React.FC = () => {
     }));
     setView('SETUP');
     setPendingHomeAction(false);
-  };
-
-  const handleExport = async () => {
-    logDebug(`EVENT: Export Request`);
-    setExporting(true);
-    try {
-      await generateInspectionWordDoc(data, true); // Use true to trigger immediate download
-      logDebug(`SUCCESS: Export Complete`);
-      setTimeout(() => setExporting(false), 3000);
-    } catch (error) {
-      logDebug(`ERROR: Export failed - ${error}`);
-      alert('Failed to export report.');
-      setExporting(false);
-    }
   };
 
   return (
@@ -137,14 +116,8 @@ const App: React.FC = () => {
           {view !== 'SETUP' && (
             <button 
               type="button"
-              onPointerUp={(e) => { 
-                logDebug("TRIGGER: Home Button onPointerUp"); 
-                e.preventDefault();
-                e.stopPropagation(); 
-                setPendingHomeAction(true); 
-              }}
-              className="p-3 hover:bg-white/10 rounded-lg transition-colors cursor-pointer relative z-[110] touch-manipulation" 
-              title="Return Home"
+              onClick={() => setPendingHomeAction(true)}
+              className="p-3 hover:bg-white/10 rounded-lg transition-colors cursor-pointer" 
             >
               <Home size={22} />
             </button>
@@ -157,7 +130,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className={`flex-1 overflow-y-auto relative z-10 ${view === 'DASHBOARD' ? 'pb-44' : 'pb-24'}`}>
+      <main className={`flex-1 overflow-y-auto relative z-10 ${view === 'DASHBOARD' ? 'pb-24' : 'pb-24'}`}>
         {view === 'SETUP' && (
           <SetupScreen 
             onStart={handleStart} 
@@ -171,7 +144,7 @@ const App: React.FC = () => {
             data={data} 
             onUpdateCompliant={handleUpdateCompliant} 
             onOpenForm={handleOpenForm}
-            onDeleteObservation={(id) => { logDebug(`TRIGGER: Delete for ${id}`); setPendingDeleteId(id); }}
+            onDeleteObservation={(id) => setPendingDeleteId(id)}
             darkMode={darkMode}
             logDebug={logDebug}
           />
@@ -188,34 +161,22 @@ const App: React.FC = () => {
       </main>
 
       {view === 'DASHBOARD' && (
-        <div className={`p-4 fixed bottom-0 left-0 right-0 max-w-lg mx-auto z-40 border-t space-y-2 transition-colors duration-300 ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 fixed bottom-0 left-0 right-0 max-w-lg mx-auto z-40 border-t transition-colors duration-300 ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-white border-slate-200'}`}>
           <button 
             type="button"
             onClick={() => setShowShare(true)}
-            className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest transition-all active:scale-95 shadow-md cursor-pointer`}
+            className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm tracking-widest transition-all active:scale-95 shadow-xl`}
           >
-            <Share2 size={16} /> SHARE REPORT
-          </button>
-          <button 
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            className={`w-full ${exporting ? 'bg-slate-500' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-4 py-4 rounded-xl flex items-center justify-center gap-2 font-bold transition-all active:scale-95 shadow-md cursor-pointer`}
-          >
-            {exporting ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> EXPORTING...</>
-            ) : (
-              <><ClipboardCheck className="w-5 h-5" /> EXPORT REPORT</>
-            )}
+            <Share2 size={20} /> GENERATE & SHARE REPORT
           </button>
         </div>
       )}
 
-      {/* Debug Console Overlay */}
+      {/* Debug Console */}
       {data.config.debugMode && (
         <div className="fixed top-24 right-4 w-72 max-h-60 bg-black/90 text-emerald-400 p-3 text-[10px] font-mono rounded-xl z-[999] pointer-events-none shadow-2xl border border-emerald-500/50 overflow-hidden backdrop-blur-md">
           <div className="flex items-center gap-2 mb-2 border-b border-emerald-500/30 pb-2">
-            <Terminal size={14} /> <span className="font-black">LIVE EVENT LOG</span>
+            <Terminal size={14} /> <span className="font-black">SYSTEM LOG</span>
           </div>
           <div className="space-y-1">
             {debugLogs.map((log, i) => <div key={i} className="truncate whitespace-pre-wrap">{log}</div>)}
@@ -223,7 +184,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Confirmation Modals */}
       <ConfirmModal 
         isOpen={pendingHomeAction} 
         onClose={() => setPendingHomeAction(false)} 
@@ -246,7 +206,7 @@ const App: React.FC = () => {
       {showSettings && (
         <SettingsModal 
           config={data.config} 
-          onSave={(newConfig) => { logDebug("CONFIG: Settings Saved"); setData(prev => ({ ...prev, config: newConfig })); }} 
+          onSave={(newConfig) => setData(prev => ({ ...prev, config: newConfig }))} 
           onClose={() => setShowSettings(false)} 
           darkMode={darkMode} 
         />
