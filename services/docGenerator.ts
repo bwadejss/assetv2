@@ -1,7 +1,7 @@
 import * as docx from 'docx';
 import { AssetCategory, InspectionData, Observation, calculateCompliance, RiskLevel, NON_MAINTENANCE_CATEGORY } from '../types.ts';
 
-const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun, BorderStyle } = docx;
+const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, TextRun, ImageRun } = docx;
 
 function base64ToUint8Array(base64: string): Uint8Array | null {
   try {
@@ -29,7 +29,7 @@ const getRiskColor = (risk: RiskLevel) => {
   }
 };
 
-// Use "Arial" instead of "Arial Nova" for universal system compatibility
+// Use "Arial" for universal system compatibility
 const REPORT_FONT = "Arial";
 
 export const generateInspectionWordDoc = async (data: InspectionData, triggerDownload = false): Promise<Blob> => {
@@ -40,7 +40,7 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
   
   const totalNonMaintDefects = nonMaintObs.reduce((s, o) => s + o.nonComplianceCount, 0);
 
-  // Helper to ensure text is always a valid string for Word XML
+  // Helper to ensure text is always a valid string for Word XML to prevent "Unreadable Content" errors
   const safeText = (val: any) => (val === undefined || val === null) ? "" : String(val);
 
   const generateRow = (label: string, value: any, isHeader = false) => new TableRow({
@@ -154,10 +154,11 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
       for (const p of obs.photos) {
         const uint8 = base64ToUint8Array(p);
         if (uint8) {
+          // Casting to any to solve the TypeScript union disambiguation issue with esm.sh types
           imgRuns.push(new ImageRun({ 
-            data: uint8, 
+            data: uint8 as any, 
             transformation: { width: 180, height: 135 } 
-          }));
+          } as any));
           imgRuns.push(new TextRun({ text: "  " }));
         }
       }
@@ -175,6 +176,9 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
   }
 
   const doc = new Document({ 
+    creator: "Site Inspector App",
+    title: `Inspection Report - ${data.siteName}`,
+    description: `Asset audit conducted by ${data.userName} on ${data.date}`,
     styles: {
       default: {
         document: {
