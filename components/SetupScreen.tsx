@@ -9,7 +9,7 @@ interface SetupScreenProps {
   onClear?: () => void;
 }
 
-const APP_VERSION = "v2.4.0";
+const APP_VERSION = "v2.4.1";
 
 export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, initialData, onClear }) => {
   const [userName, setUserName] = useState(initialData?.userName || '');
@@ -26,8 +26,8 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, ini
   const hasExistingData = !!initialData?.siteName;
 
   return (
-    <div className="p-6 h-full flex flex-col justify-center relative min-h-[600px] transition-colors">
-      <div className="mb-8 text-center">
+    <div className="p-6 h-full flex flex-col justify-center relative transition-colors overflow-y-auto">
+      <div className="mb-8 text-center pt-8">
         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-blue-900/40' : 'bg-blue-100'}`}>
           <ShieldCheck className={`w-10 h-10 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
         </div>
@@ -46,7 +46,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, ini
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 flex-1 max-w-sm mx-auto w-full">
+      <form onSubmit={handleSubmit} className="space-y-6 flex-1 max-w-sm mx-auto w-full pb-20">
         <div>
           <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2 ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>
             <User className="w-3 h-3" /> Inspector Name
@@ -92,13 +92,13 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, ini
         <button 
           type="submit"
           disabled={!userName || !siteName}
-          className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95"
+          className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg active:scale-95"
         >
           {hasExistingData ? "Continue Audit" : "Begin Audit"}
         </button>
       </form>
 
-      <div className="absolute bottom-6 left-0 right-0 text-center">
+      <div className="text-center pb-6">
         <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">
           OFFLINE COMPLIANCE TOOL • {APP_VERSION}
         </p>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, CheckCircle2, Download, MoreVertical, MousePointer2 } from 'lucide-react';
+import { BellRing, CheckCircle2, Download, MoreVertical, Share2 } from 'lucide-react';
 
 interface FileGuideModalProps {
   isOpen: boolean;
@@ -17,54 +17,37 @@ export const FileGuideModal: React.FC<FileGuideModalProps> = ({ isOpen, onClose,
       <div className={`w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border ${darkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
         
         <div className="p-6 text-center space-y-4">
-          <div className="bg-blue-600/20 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto animate-bounce">
-            <BellRing className="w-7 h-7 text-blue-500" />
+          <div className="bg-blue-600/20 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto">
+            <Share2 className="w-7 h-7 text-blue-500" />
           </div>
           
           <div className="space-y-1">
-            <h2 className="text-lg font-black uppercase tracking-tight">Accessing Your Report</h2>
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500 opacity-80">Follow these steps carefully</p>
+            <h2 className="text-lg font-black uppercase tracking-tight">Manual Sharing</h2>
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500 opacity-80">If the share menu didn't open</p>
           </div>
 
           <div className="space-y-3">
-            {/* The Quick Way */}
             <div className={`p-4 rounded-2xl border text-left space-y-3 ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center gap-2 mb-1">
-                <MousePointer2 size={14} className="text-blue-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">The Quick Way</span>
-              </div>
-              
               <div className="flex gap-3">
                 <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-black shrink-0 text-[10px]">1</div>
                 <p className="text-xs font-bold leading-tight">
-                  Look for the <span className="underline">grey bar</span> at the bottom (or top) of your browser.
+                  Open your browser menu (usually 3 dots <span className="font-black">⋮</span> in the top right).
                 </p>
               </div>
 
               <div className="flex gap-3">
                 <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-black shrink-0 text-[10px]">2</div>
                 <p className="text-xs font-bold leading-tight">
-                  Tap <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded text-[9px] uppercase font-black">DETAILS</span> immediately.
+                  Select <span className="font-black">Downloads</span> from the menu list.
                 </p>
               </div>
 
               <div className="flex gap-3">
                 <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-black shrink-0 text-[10px]">3</div>
                 <p className="text-xs font-bold leading-tight">
-                  In the folder that opens, tap the report to <span className="text-blue-500">Share to Teams</span>.
+                  Tap the report name and select <span className="text-blue-500 font-black">Share</span> to send it to Teams.
                 </p>
               </div>
-            </div>
-
-            {/* The Manual Way */}
-            <div className={`p-4 rounded-2xl border text-left space-y-3 ${darkMode ? 'bg-slate-850/50 border-slate-700/50' : 'bg-slate-100/50 border-slate-200'}`}>
-              <div className="flex items-center gap-2 mb-1">
-                <MoreVertical size={14} className="text-slate-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">If you missed it</span>
-              </div>
-              <p className="text-[10px] font-bold leading-tight opacity-70">
-                Tap browser menu (3 dots ⋮) → <strong>Downloads</strong>. Tap the file's menu to Share it.
-              </p>
             </div>
           </div>
 
@@ -73,7 +56,7 @@ export const FileGuideModal: React.FC<FileGuideModalProps> = ({ isOpen, onClose,
               onClick={onRetry}
               className={`w-full py-4 border rounded-xl font-black text-xs tracking-widest transition-all flex items-center justify-center gap-2 ${darkMode ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-200 hover:bg-slate-50'}`}
             >
-              <Download size={16} /> TRIGGER DOWNLOAD AGAIN
+              <Download size={16} /> DOWNLOAD AGAIN
             </button>
             <button 
               onClick={onClose}

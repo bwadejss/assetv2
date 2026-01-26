@@ -72,7 +72,6 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
       shortTermFix,
       longTermFix,
       feedbackNotes,
-      // Internal fields kept for report logic but removed from UI form
       actionOwner: initialData?.actionOwner || "", 
       notes: initialData?.notes || "",
       photos,
@@ -85,9 +84,9 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
   const labelClass = `block text-[10px] font-black uppercase tracking-widest mb-2 opacity-60 ${darkMode ? 'text-slate-400' : 'text-slate-700'}`;
 
   return (
-    <div className={`flex flex-col h-full ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-900'}`}>
-      <div className={`p-4 border-b flex items-center justify-between sticky top-0 z-10 shadow-sm ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-        <button type="button" onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-blue-500 transition-colors cursor-pointer">
+    <div className={`flex flex-col h-full ${darkMode ? 'bg-slate-900' : 'bg-slate-50'}`}>
+      <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 z-20 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+        <button type="button" onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-blue-500 transition-colors">
           <ChevronLeft className="w-6 h-6" />
         </button>
         <h2 className="font-black truncate px-2 text-xs uppercase tracking-[0.15em]">
@@ -96,7 +95,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
         <div className="w-10"></div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
         <div>
           <label className={labelClass}>Asset Name / Description *</label>
           <input 
@@ -170,7 +169,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Short Term Fix</label>
             <textarea 
@@ -213,7 +212,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
                 <button 
                   type="button"
                   onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
-                  className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-lg active:scale-90 transition-transform cursor-pointer"
+                  className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-lg active:scale-90 transition-transform"
                 >
                   <X size={12} />
                 </button>
@@ -224,7 +223,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
                 <button 
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
-                  className={`aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${darkMode ? 'border-slate-700 bg-slate-800 text-slate-500 active:bg-blue-900/20 active:text-blue-400' : 'border-slate-300 bg-slate-50 text-slate-400 active:bg-blue-50 active:text-blue-500'}`}
+                  className={`aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all ${darkMode ? 'border-slate-700 bg-slate-800 text-slate-500 active:bg-blue-900/20 active:text-blue-400' : 'border-slate-300 bg-white text-slate-400 active:bg-blue-50 active:text-blue-500'}`}
                 >
                   <Camera size={24} className="mb-1" />
                   <span className="text-[8px] font-black">CAMERA</span>
@@ -232,7 +231,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
                 <button 
                   type="button"
                   onClick={() => galleryInputRef.current?.click()}
-                  className={`aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${darkMode ? 'border-slate-700 bg-slate-800 text-slate-500 active:bg-blue-900/20 active:text-blue-400' : 'border-slate-300 bg-slate-50 text-slate-400 active:bg-blue-50 active:text-blue-500'}`}
+                  className={`aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all ${darkMode ? 'border-slate-700 bg-slate-800 text-slate-500 active:bg-blue-900/20 active:text-blue-400' : 'border-slate-300 bg-white text-slate-400 active:bg-blue-50 active:text-blue-500'}`}
                 >
                   <ImageIcon size={24} className="mb-1" />
                   <span className="text-[8px] font-black">GALLERY</span>
@@ -250,15 +249,15 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
           <input type="file" ref={galleryInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" />
         </div>
 
-        <div className="pt-4 flex gap-3 pb-12">
-          <button type="button" onClick={onBack} className={`flex-1 py-4 border rounded-xl font-black text-sm transition-colors cursor-pointer ${darkMode ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
+        <div className="pt-4 flex gap-3 pb-8 flex-shrink-0">
+          <button type="button" onClick={onBack} className={`flex-1 py-4 border rounded-xl font-black text-sm transition-colors ${darkMode ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
             CANCEL
           </button>
           <button 
             type="button"
             onClick={handleSave}
             disabled={isProcessing}
-            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 disabled:opacity-50"
           >
             <Save size={18} /> {initialData ? 'UPDATE' : 'SAVE DEFECT'}
           </button>

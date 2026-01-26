@@ -8,9 +8,9 @@ import { ConfirmModal } from './components/ConfirmModal.tsx';
 import { FileGuideModal } from './components/FileGuideModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info, Download } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info, Share2, Download } from 'lucide-react';
 
-const APP_VERSION = "v2.4.0";
+const APP_VERSION = "v2.4.1";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
@@ -117,6 +117,31 @@ const App: React.FC = () => {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
+  const handleShare = async () => {
+    if (!lastBlob || !lastFilename) return;
+    
+    try {
+      const file = new File([lastBlob], lastFilename, { 
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+      });
+      
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        logDebug("SHARE: Attempting native file share");
+        await navigator.share({
+          files: [file],
+          title: 'Site Report',
+          text: `Inspection report for ${data.siteName}`,
+        });
+      } else {
+        logDebug("SHARE: Browser does not support file sharing, showing guide");
+        setShowFileGuide(true);
+      }
+    } catch (error) {
+      logDebug(`SHARE ERROR: ${error}`);
+      setShowFileGuide(true);
+    }
+  };
+
   const handleExport = async () => {
     logDebug(`EXPORT: Requested for ${data.siteName}`);
     setExporting(true);
@@ -126,11 +151,14 @@ const App: React.FC = () => {
       setLastBlob(blob);
       setLastFilename(filename);
       
+      // Auto-download as well so it's saved locally
       triggerDownload(blob, filename);
       
-      logDebug(`SUCCESS: Blob created and download triggered.`);
-      setShowFileGuide(true);
-      setTimeout(() => setExporting(false), 1500);
+      logDebug(`SUCCESS: Report ready.`);
+      setExporting(false);
+      
+      // Try to share immediately if possible
+      handleShare();
     } catch (error) {
       logDebug(`ERROR: Export failed - ${error}`);
       alert('Failed to generate report.');
@@ -141,9 +169,9 @@ const App: React.FC = () => {
   const clearLogs = () => setDebugLogs([]);
 
   return (
-    <div className={`min-h-screen flex flex-col max-w-lg mx-auto shadow-2xl overflow-hidden relative border-x transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'}`}>
+    <div className={`fixed inset-0 flex flex-col max-w-lg mx-auto shadow-2xl overflow-hidden border-x transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'}`}>
       
-      <header className={`p-4 shadow-md sticky top-0 z-[100] flex justify-between items-center transition-colors duration-300 ${darkMode ? 'bg-slate-850 text-white' : 'bg-blue-700 text-white'}`}>
+      <header className={`p-4 shadow-md flex-shrink-0 z-[100] flex justify-between items-center transition-colors duration-300 ${darkMode ? 'bg-slate-850 text-white' : 'bg-blue-700 text-white'}`}>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate">
             {view === 'SETUP' ? 'Site Inspector' : `${data.siteName}`}
@@ -165,7 +193,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className={`flex-1 overflow-y-auto relative z-10 ${view === 'DASHBOARD' ? (lastFilename ? 'pb-40' : 'pb-32') : 'pb-24'}`}>
+      <main className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${view === 'DASHBOARD' ? (lastFilename ? 'pb-44' : 'pb-32') : 'pb-4'}`}>
         {view === 'SETUP' && (
           <SetupScreen 
             onStart={handleStart} 
@@ -196,7 +224,7 @@ const App: React.FC = () => {
       </main>
 
       {view === 'DASHBOARD' && (
-        <div className={`p-4 fixed bottom-0 left-0 right-0 max-w-lg mx-auto z-40 border-t space-y-2 transition-colors duration-300 ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 flex-shrink-0 z-40 border-t space-y-2 transition-colors duration-300 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.3)] ${darkMode ? 'bg-slate-850 border-slate-700' : 'bg-white border-slate-200'}`}>
           {lastFilename && (
             <div className={`flex gap-2 mb-1 p-2 rounded-xl animate-in slide-in-from-bottom-2 duration-300 ${darkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
               <div className="flex-1 flex items-center gap-2 px-2 overflow-hidden">
@@ -206,10 +234,16 @@ const App: React.FC = () => {
                 </span>
               </div>
               <button 
-                onClick={() => setShowFileGuide(true)}
-                className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-indigo-600 text-white`}
+                onClick={handleShare}
+                className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-emerald-600 text-white"
               >
-                <Info size={14} /> How to Share
+                <Share2 size={14} /> Send to Teams
+              </button>
+              <button 
+                onClick={() => setShowFileGuide(true)}
+                className={`p-2 rounded-lg flex items-center justify-center transition-all ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}
+              >
+                <Info size={16} />
               </button>
             </div>
           )}
