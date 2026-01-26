@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ScoringConfig, AssetCategory } from '../types.ts';
-import { X, Sliders, Plus, Trash2, Tag, Terminal } from 'lucide-react';
+import { X, Sliders, Plus, Trash2, Tag, Terminal, FolderOpen } from 'lucide-react';
 
 interface SettingsModalProps {
   config: ScoringConfig;
@@ -14,6 +14,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
   const [comp, setComp] = useState(config.complianceThreshold);
   const [categories, setCategories] = useState<AssetCategory[]>([...config.categories]);
   const [debugMode, setDebugMode] = useState(config.debugMode);
+  const [prefix, setPrefix] = useState(config.exportPathPrefix || 'SITE_AUDIT');
   const [newCat, setNewCat] = useState('');
 
   const addCategory = () => {
@@ -67,7 +68,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
               />
             </div>
 
-            {/* Debug Toggle */}
+            {/* Export Prefix */}
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                <FolderOpen size={12} /> Filename Prefix
+              </label>
+              <input 
+                type="text" 
+                value={prefix}
+                onChange={e => setPrefix(e.target.value.replace(/[^a-z0-9_]/gi, ''))}
+                placeholder="e.g. MAINTENANCE_REPORTS"
+                className={`w-full p-4 rounded-xl border outline-none text-sm font-bold uppercase ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+              />
+              <p className="text-[9px] opacity-40 font-bold uppercase leading-tight italic">
+                Note: Browsers always save to your default 'Downloads' folder. This prefix helps you search and group files later.
+              </p>
+            </div>
+
             <div className={`p-4 rounded-xl border flex items-center justify-between ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
               <div className="flex items-center gap-3">
                 <Terminal size={18} className="text-blue-500" />
@@ -123,7 +140,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
             Cancel
           </button>
           <button 
-            onClick={() => { onSave({ sisThreshold: sis, complianceThreshold: comp, categories, debugMode }); onClose(); }}
+            onClick={() => { onSave({ sisThreshold: sis, complianceThreshold: comp, categories, debugMode, exportPathPrefix: prefix }); onClose(); }}
             className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg"
           >
             Save All
