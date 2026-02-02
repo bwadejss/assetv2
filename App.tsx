@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SetupScreen } from './components/SetupScreen.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
@@ -8,9 +9,10 @@ import { ConfirmModal } from './components/ConfirmModal.tsx';
 import { FileGuideModal } from './components/FileGuideModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info, Share2, Download } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info } from 'lucide-react';
 
-const APP_VERSION = "v2.4.1";
+const APP_VERSION = "v2.6.0";
+const STORAGE_KEY = "SITE_INSPECTOR_PERSIST_V2";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
@@ -26,18 +28,43 @@ const App: React.FC = () => {
   const [pendingHomeAction, setPendingHomeAction] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const [data, setData] = useState<InspectionData>({
-    userName: '',
-    siteName: '',
-    siteType: SiteType.WTW,
-    date: new Date().toLocaleDateString(),
-    compliantCounts: {},
-    observations: [],
-    config: DEFAULT_SCORING_CONFIG
+  // Load state from localStorage on init
+  const [data, setData] = useState<InspectionData>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed;
+      } catch (e) {
+        console.error("Persistence Restore Error", e);
+      }
+    }
+    return {
+      userName: '',
+      siteName: '',
+      siteType: SiteType.WTW,
+      date: new Date().toLocaleDateString(),
+      compliantCounts: {},
+      observations: [],
+      config: DEFAULT_SCORING_CONFIG
+    };
   });
 
   const [activeCategory, setActiveCategory] = useState<AssetCategory>('');
   const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
+
+  // Auto-persist state changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [data]);
+
+  // Handle restoring view based on data
+  useEffect(() => {
+    if (data.siteName && data.userName && view === 'SETUP') {
+      // If we have data, we might want to automatically jump to dashboard, 
+      // but let's allow the SetupScreen resume logic to handle it for better UX.
+    }
+  }, []);
 
   const logDebug = useCallback((msg: string) => {
     console.log(`[DEBUG] ${msg}`);
@@ -90,15 +117,16 @@ const App: React.FC = () => {
   };
 
   const confirmHome = () => {
-    setData(prev => ({
-      ...prev,
+    setData({
       userName: '',
       siteName: '',
       siteType: SiteType.WTW,
       date: new Date().toLocaleDateString(),
       compliantCounts: {},
       observations: [],
-    }));
+      config: data.config
+    });
+    localStorage.removeItem(STORAGE_KEY);
     setLastFilename(null);
     setLastBlob(null);
     setView('SETUP');
@@ -106,7 +134,6 @@ const App: React.FC = () => {
   };
 
   const triggerDownload = (blob: Blob, filename: string) => {
-    logDebug(`DOWNLOAD: Triggering browser download for ${filename}`);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -117,48 +144,24 @@ const App: React.FC = () => {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
-  const handleShare = async () => {
-    if (!lastBlob || !lastFilename) return;
-    
-    try {
-      const file = new File([lastBlob], lastFilename, { 
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
-      });
-      
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        logDebug("SHARE: Attempting native file share");
-        await navigator.share({
-          files: [file],
-          title: 'Site Report',
-          text: `Inspection report for ${data.siteName}`,
-        });
-      } else {
-        logDebug("SHARE: Browser does not support file sharing, showing guide");
-        setShowFileGuide(true);
-      }
-    } catch (error) {
-      logDebug(`SHARE ERROR: ${error}`);
-      setShowFileGuide(true);
-    }
-  };
-
   const handleExport = async () => {
-    logDebug(`EXPORT: Requested for ${data.siteName}`);
+    logDebug(`EXPORT: Processing report...`);
     setExporting(true);
     try {
-      const filename = `${data.siteName.replace(/\s+/g, '_')}_Report_${data.date.replace(/\//g, '-')}.docx`;
+      // Generate a unique suffix using date/time to prevent overwrites on client devices
+      const now = new Date();
+      const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+      const filename = `${data.siteName.replace(/\s+/g, '_')}_${timestamp}_Report.docx`;
+      
       const blob = await generateInspectionWordDoc(data, false); 
       setLastBlob(blob);
       setLastFilename(filename);
       
-      // Auto-download as well so it's saved locally
       triggerDownload(blob, filename);
       
-      logDebug(`SUCCESS: Report ready.`);
+      logDebug(`SUCCESS: Report ${filename} generated.`);
       setExporting(false);
-      
-      // Try to share immediately if possible
-      handleShare();
+      // Removed setView('SETUP') to keep user on Dashboard so they can export multiple times if needed.
     } catch (error) {
       logDebug(`ERROR: Export failed - ${error}`);
       alert('Failed to generate report.');
@@ -193,13 +196,13 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${view === 'DASHBOARD' ? (lastFilename ? 'pb-44' : 'pb-32') : 'pb-4'}`}>
+      <main className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${view === 'DASHBOARD' ? 'pb-32' : 'pb-4'}`}>
         {view === 'SETUP' && (
           <SetupScreen 
             onStart={handleStart} 
             darkMode={darkMode} 
             initialData={data.siteName ? data : undefined} 
-            onClear={() => setPendingHomeAction(true)} 
+            onClear={confirmHome} 
           />
         )}
         {view === 'DASHBOARD' && (
@@ -230,15 +233,9 @@ const App: React.FC = () => {
               <div className="flex-1 flex items-center gap-2 px-2 overflow-hidden">
                 <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
                 <span className={`text-[10px] font-black uppercase tracking-tight truncate ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                  {lastFilename}
+                  Report Ready: {lastFilename}
                 </span>
               </div>
-              <button 
-                onClick={handleShare}
-                className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-emerald-600 text-white"
-              >
-                <Share2 size={14} /> Send to Teams
-              </button>
               <button 
                 onClick={() => setShowFileGuide(true)}
                 className={`p-2 rounded-lg flex items-center justify-center transition-all ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}
@@ -257,7 +254,7 @@ const App: React.FC = () => {
             {exporting ? (
               <><Loader2 className="w-5 h-5 animate-spin" /> GENERATING...</>
             ) : (
-              <><ClipboardCheck className="w-5 h-5" /> {lastFilename ? 'RE-GENERATE REPORT' : 'GENERATE SITE REPORT'}</>
+              <><ClipboardCheck className="w-5 h-5" /> {lastFilename ? 'GENERATE NEW REPORT VERSION' : 'GENERATE SITE REPORT'}</>
             )}
           </button>
         </div>
