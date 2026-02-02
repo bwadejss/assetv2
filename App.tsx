@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { SetupScreen } from './components/SetupScreen.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
@@ -11,7 +10,7 @@ import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
 import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info } from 'lucide-react';
 
-const APP_VERSION = "v2.6.0";
+const APP_VERSION = "v2.6.5";
 const STORAGE_KEY = "SITE_INSPECTOR_PERSIST_V2";
 
 const App: React.FC = () => {
@@ -28,18 +27,9 @@ const App: React.FC = () => {
   const [pendingHomeAction, setPendingHomeAction] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  // Load state from localStorage on init
   const [data, setData] = useState<InspectionData>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed;
-      } catch (e) {
-        console.error("Persistence Restore Error", e);
-      }
-    }
-    return {
+    const defaultData: InspectionData = {
       userName: '',
       siteName: '',
       siteType: SiteType.WTW,
@@ -48,23 +38,31 @@ const App: React.FC = () => {
       observations: [],
       config: DEFAULT_SCORING_CONFIG
     };
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Sanity Check: Ensure all critical properties exist to avoid undefined errors
+        return {
+          ...defaultData,
+          ...parsed,
+          compliantCounts: parsed.compliantCounts || {},
+          observations: parsed.observations || [],
+          config: { ...DEFAULT_SCORING_CONFIG, ...(parsed.config || {}) }
+        };
+      } catch (e) {
+        console.error("Data Corruption Detected - Resetting Storage", e);
+      }
+    }
+    return defaultData;
   });
 
   const [activeCategory, setActiveCategory] = useState<AssetCategory>('');
   const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
 
-  // Auto-persist state changes
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
-
-  // Handle restoring view based on data
-  useEffect(() => {
-    if (data.siteName && data.userName && view === 'SETUP') {
-      // If we have data, we might want to automatically jump to dashboard, 
-      // but let's allow the SetupScreen resume logic to handle it for better UX.
-    }
-  }, []);
 
   const logDebug = useCallback((msg: string) => {
     console.log(`[DEBUG] ${msg}`);
@@ -77,7 +75,6 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   const handleStart = (userName: string, siteName: string, siteType: SiteType) => {
-    logDebug(`START: User=${userName} Site=${siteName}`);
     setData(prev => ({ ...prev, userName, siteName, siteType, date: new Date().toLocaleDateString() }));
     setView('DASHBOARD');
   };
@@ -145,35 +142,24 @@ const App: React.FC = () => {
   };
 
   const handleExport = async () => {
-    logDebug(`EXPORT: Processing report...`);
     setExporting(true);
     try {
-      // Generate a unique suffix using date/time to prevent overwrites on client devices
       const now = new Date();
       const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
       const filename = `${data.siteName.replace(/\s+/g, '_')}_${timestamp}_Report.docx`;
-      
       const blob = await generateInspectionWordDoc(data, false); 
       setLastBlob(blob);
       setLastFilename(filename);
-      
       triggerDownload(blob, filename);
-      
-      logDebug(`SUCCESS: Report ${filename} generated.`);
       setExporting(false);
-      // Removed setView('SETUP') to keep user on Dashboard so they can export multiple times if needed.
     } catch (error) {
-      logDebug(`ERROR: Export failed - ${error}`);
       alert('Failed to generate report.');
       setExporting(false);
     }
   };
 
-  const clearLogs = () => setDebugLogs([]);
-
   return (
     <div className={`fixed inset-0 flex flex-col max-w-lg mx-auto shadow-2xl overflow-hidden border-x transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'}`}>
-      
       <header className={`p-4 shadow-md flex-shrink-0 z-[100] flex justify-between items-center transition-colors duration-300 ${darkMode ? 'bg-slate-850 text-white' : 'bg-blue-700 text-white'}`}>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate">
@@ -183,7 +169,6 @@ const App: React.FC = () => {
             {APP_VERSION}
           </p>
         </div>
-        
         <div className="flex items-center gap-1">
           {view !== 'SETUP' && (
             <button onClick={() => setPendingHomeAction(true)} className="p-3 hover:bg-white/10 rounded-lg transition-colors"><Home size={22} /></button>
@@ -244,7 +229,6 @@ const App: React.FC = () => {
               </button>
             </div>
           )}
-          
           <button 
             type="button"
             onClick={handleExport}
@@ -267,56 +251,19 @@ const App: React.FC = () => {
               <Terminal size={12} />
               <span className="font-bold tracking-widest">LIVE DEBUG LOG</span>
             </div>
-            <button onClick={clearLogs} className="hover:text-white uppercase">{"[Clear]"}</button>
+            <button onClick={() => setDebugLogs([])} className="hover:text-white uppercase">{"[Clear]"}</button>
           </div>
           <div className="overflow-y-auto flex-1 space-y-1">
-            {debugLogs.length === 0 ? (
-              <p className="opacity-40 italic">Waiting for events...</p>
-            ) : (
-              debugLogs.map((log, i) => <div key={i} className="whitespace-nowrap">{"- "}{log}</div>)
-            )}
+            {debugLogs.length === 0 ? <p className="opacity-40 italic">Waiting for events...</p> : debugLogs.map((log, i) => <div key={i} className="whitespace-nowrap">{"- "}{log}</div>)}
           </div>
         </div>
       )}
 
-      <FileGuideModal 
-        isOpen={showFileGuide} 
-        onClose={() => setShowFileGuide(false)} 
-        lastFilename={lastFilename}
-        onRetry={() => lastBlob && lastFilename && triggerDownload(lastBlob, lastFilename)}
-        darkMode={darkMode}
-      />
-
-      <ConfirmModal 
-        isOpen={pendingHomeAction} 
-        onClose={() => setPendingHomeAction(false)} 
-        onConfirm={confirmHome}
-        title="EXIT TO MENU?"
-        message="This will clear all current session data."
-        darkMode={darkMode}
-      />
-
-      <ConfirmModal 
-        isOpen={!!pendingDeleteId} 
-        onClose={() => setPendingDeleteId(null)} 
-        onConfirm={confirmDelete}
-        title="DELETE DEFECT?"
-        message="This action cannot be undone."
-        darkMode={darkMode}
-      />
-
+      <FileGuideModal isOpen={showFileGuide} onClose={() => setShowFileGuide(false)} lastFilename={lastFilename} onRetry={() => lastBlob && lastFilename && triggerDownload(lastBlob, lastFilename)} darkMode={darkMode} />
+      <ConfirmModal isOpen={pendingHomeAction} onClose={() => setPendingHomeAction(false)} onConfirm={confirmHome} title="EXIT TO MENU?" message="This will clear all current session data." darkMode={darkMode} />
+      <ConfirmModal isOpen={!!pendingDeleteId} onClose={() => setPendingDeleteId(null)} onConfirm={confirmDelete} title="DELETE DEFECT?" message="This action cannot be undone." darkMode={darkMode} />
       {showReadme && <ReadmeModal onClose={() => setShowReadme(false)} darkMode={darkMode} />}
-      {showSettings && (
-        <SettingsModal 
-          config={data.config} 
-          onSave={(newConfig) => {
-            logDebug(`SETTINGS: Config updated. Debug=${newConfig.debugMode}`);
-            setData(prev => ({ ...prev, config: newConfig }));
-          }} 
-          onClose={() => setShowSettings(false)} 
-          darkMode={darkMode} 
-        />
-      )}
+      {showSettings && <SettingsModal config={data.config} onSave={(newConfig) => setData(prev => ({ ...prev, config: newConfig }))} onClose={() => setShowSettings(false)} darkMode={darkMode} />}
     </div>
   );
 };
