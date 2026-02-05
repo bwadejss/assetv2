@@ -5,13 +5,10 @@ const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, Head
 
 /**
  * Sanitizes strings to ensure they don't contain characters that break the OpenXML schema.
- * Word Desktop and Teams are extremely sensitive to control characters in XML.
  */
 function sanitize(str: any): string {
   if (str === undefined || str === null) return "";
   const text = String(str);
-  // Removes control characters that are invalid in XML (except tab, cr, lf)
-  // and replaces common problematic characters.
   return text.replace(/[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD\u10000-\u10FFFF]/g, "");
 }
 
@@ -41,7 +38,6 @@ const getRiskColor = (risk: RiskLevel) => {
   }
 };
 
-// Calibri is the most native Microsoft Word font, reducing recovery prompts.
 const REPORT_FONT = "Calibri";
 
 export const generateInspectionWordDoc = async (data: InspectionData, triggerDownload = false): Promise<Blob> => {
@@ -51,6 +47,21 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
   const nonMaintObs = data.observations.filter(o => o.category === NON_MAINTENANCE_CATEGORY);
   
   const totalNonMaintDefects = nonMaintObs.reduce((s, o) => s + o.nonComplianceCount, 0);
+
+  // Calculate severity matrix
+  const getSeverityCount = (obs: Observation[], level: RiskLevel) => obs.filter(o => o.risk === level).length;
+  
+  const maintSeverity = {
+    low: getSeverityCount(maintObs, RiskLevel.LOW),
+    med: getSeverityCount(maintObs, RiskLevel.MED),
+    hi: getSeverityCount(maintObs, RiskLevel.HI)
+  };
+
+  const nonMaintSeverity = {
+    low: getSeverityCount(nonMaintObs, RiskLevel.LOW),
+    med: getSeverityCount(nonMaintObs, RiskLevel.MED),
+    hi: getSeverityCount(nonMaintObs, RiskLevel.HI)
+  };
 
   const generateRow = (label: string, value: any, isHeader = false) => new TableRow({
     children: [
@@ -116,7 +127,7 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
             children: [
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(cat), font: REPORT_FONT })] })] }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(pass), font: REPORT_FONT })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(fail), font: REPORT_FONT })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(fail), font: REPORT_FONT })] })], shading: { fill: fail > 0 ? "FFF1F2" : undefined } }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: sanitize(pass + fail), font: REPORT_FONT })] })] }),
             ]
           });
@@ -124,7 +135,39 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
       ]
     }),
 
-    new Paragraph({ text: "3. Detailed Maintenance Findings", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
+    new Paragraph({ text: "3. Defect Severity Summary", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ children: [new TextRun({ text: "Severity Level", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Low", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Medium", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ shading: { fill: "F2F2F2" }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "High", bold: true, font: REPORT_FONT })] })] }),
+          ]
+        }),
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Maintenance Defects", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sanitize(maintSeverity.low), font: REPORT_FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sanitize(maintSeverity.med), font: REPORT_FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sanitize(maintSeverity.hi), font: REPORT_FONT, color: maintSeverity.hi > 0 ? "EF4444" : undefined, bold: maintSeverity.hi > 0 })] })] }),
+          ]
+        }),
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Non-Maintenance Defects", bold: true, font: REPORT_FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sanitize(nonMaintSeverity.low), font: REPORT_FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sanitize(nonMaintSeverity.med), font: REPORT_FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sanitize(nonMaintSeverity.hi), font: REPORT_FONT, color: nonMaintSeverity.hi > 0 ? "EF4444" : undefined, bold: nonMaintSeverity.hi > 0 })] })] }),
+          ]
+        }),
+      ]
+    }),
+
+    new Paragraph({ text: "4. Detailed Maintenance Findings", heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
   ];
 
   const addObsToDoc = async (obs: Observation, index: number) => {
@@ -168,9 +211,8 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
           imgParts.push(new ImageRun({ 
             data: uint8 as any, 
             transformation: { width: 220, height: 165 },
-            type: "png" // Force standard type mapping
+            type: "png"
           } as any));
-          // Word Online handles wrapping better with a TextRun separator
           imgParts.push(new TextRun({ text: "  " }));
         }
       }
@@ -183,7 +225,7 @@ export const generateInspectionWordDoc = async (data: InspectionData, triggerDow
   for (let i = 0; i < maintObs.length; i++) await addObsToDoc(maintObs[i], i);
   
   if (nonMaintObs.length > 0) {
-    children.push(new Paragraph({ text: "4. Non-Maintenance Oriented Findings", heading: HeadingLevel.HEADING_2, spacing: { before: 600, after: 200 } }));
+    children.push(new Paragraph({ text: "5. Non-Maintenance Oriented Findings", heading: HeadingLevel.HEADING_2, spacing: { before: 600, after: 200 } }));
     for (let i = 0; i < nonMaintObs.length; i++) await addObsToDoc(nonMaintObs[i], maintObs.length + i);
   }
 
