@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SetupScreen } from './components/SetupScreen.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
@@ -10,7 +11,7 @@ import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
 import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info } from 'lucide-react';
 
-const APP_VERSION = "v2.6.5";
+const APP_VERSION = "v2.7.0";
 const STORAGE_KEY = "SITE_INSPECTOR_PERSIST_V2";
 
 const App: React.FC = () => {
@@ -42,7 +43,6 @@ const App: React.FC = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Sanity Check: Ensure all critical properties exist to avoid undefined errors
         return {
           ...defaultData,
           ...parsed,

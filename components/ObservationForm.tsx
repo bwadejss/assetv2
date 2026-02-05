@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { AssetCategory, RiskLevel, Observation } from '../types.ts';
-import { Camera, ChevronLeft, Plus, Minus, Save, X, Image as ImageIcon, Loader2, Scan, Edit3, AlertCircle, RefreshCcw, Image } from 'lucide-react';
+import { Camera, ChevronLeft, Plus, Minus, Save, X, Image as ImageIcon, Loader2, Scan, Edit3, AlertCircle, RefreshCcw } from 'lucide-react';
 import { compressImage } from '../services/imageResizer.ts';
 import { ConfirmModal } from './ConfirmModal.tsx';
 import { PhotoEditor } from './PhotoEditor.tsx';
@@ -61,7 +62,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
       if (scannerVideoRef.current) {
         scannerVideoRef.current.srcObject = stream;
         if (!('BarcodeDetector' in window)) {
-           setScanError("This browser doesn't support native scanning. Please enter ID manually or use a modern browser.");
+           setScanError("Native scanning not supported.");
            return;
         }
 
@@ -76,13 +77,11 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
               if ('vibrate' in navigator) navigator.vibrate(100);
               stopScanner();
             }
-          } catch (e) {
-            // Silently retry frame
-          }
+          } catch (e) {}
         }, 500);
       }
     } catch (err: any) {
-      setScanError(`Camera Access Blocked: ${err.message || 'Check permissions'}`);
+      setScanError(`Camera Access Blocked: ${err.message}`);
     }
   };
 
@@ -94,12 +93,13 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setIsProcessing(true);
-    const filesToProcess = Array.from(files).slice(0, 10 - photos.length) as File[];
+    // Fix: Explicitly typing as File[] to prevent 'unknown' inference during iteration, satisfying the Blob parameter requirement for readAsDataURL.
+    const filesToProcess: File[] = Array.from(files).slice(0, 10 - photos.length);
     for (const file of filesToProcess) {
       const reader = new FileReader();
       const base64 = await new Promise<string>((resolve) => {
         reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(file as Blob);
+        reader.readAsDataURL(file);
       });
       const optimized = await compressImage(base64);
       setPhotos(prev => [...prev, optimized]);
@@ -196,16 +196,16 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
               </div>
             ))}
             {photos.length < 10 && (
-              <>
-                <button onClick={() => cameraInputRef.current?.click()} className="aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-slate-400">
+              <div className="flex gap-2 col-span-2">
+                <button onClick={() => cameraInputRef.current?.click()} className="flex-1 aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-slate-400">
                   <Camera size={24} />
-                  <span className="text-[8px] font-black mt-1">CAMERA</span>
+                  <span className="text-[8px] font-black mt-1 uppercase">Camera</span>
                 </button>
-                <button onClick={() => galleryInputRef.current?.click()} className="aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-slate-400">
-                  <Image size={24} />
-                  <span className="text-[8px] font-black mt-1">GALLERY</span>
+                <button onClick={() => galleryInputRef.current?.click()} className="flex-1 aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-slate-400">
+                  <ImageIcon size={24} />
+                  <span className="text-[8px] font-black mt-1 uppercase">Gallery</span>
                 </button>
-              </>
+              </div>
             )}
           </div>
           <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
@@ -214,7 +214,9 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
 
         <div className="pt-8 flex gap-3">
           <button onClick={() => setShowBackWarning(true)} className="flex-1 py-5 border rounded-xl font-black text-sm">DISCARD</button>
-          <button onClick={handleSave} disabled={isProcessing} className="flex-1 py-5 bg-blue-600 text-white rounded-xl font-black text-sm shadow-xl">SAVE</button>
+          <button onClick={handleSave} disabled={isProcessing} className="flex-1 py-5 bg-blue-600 text-white rounded-xl font-black text-sm shadow-xl flex items-center justify-center gap-2">
+            {isProcessing && <Loader2 className="animate-spin" size={18} />} SAVE
+          </button>
         </div>
       </div>
 
