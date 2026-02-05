@@ -3,26 +3,17 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: './', // Ensures assets load correctly on GitHub Pages subpaths
+  base: '', // Relative paths for better compatibility with GitHub Pages subdirectories
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    sourcemap: true,
+    sourcemap: false,
     rollupOptions: {
-      // Mark libraries from the import map as external so Rollup doesn't try to bundle them from node_modules
-      external: [
-        'react',
-        'react-dom',
-        'react-dom/client',
-        'lucide-react',
-        'docx',
-        'html5-qrcode'
-      ],
+      // We allow Vite to bundle these for production to avoid Import Map runtime issues
+      // while keeping them available via CDN for development/ESM environments.
       output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-          'html5-qrcode': 'Html5Qrcode'
+        manualChunks: {
+          vendor: ['react', 'react-dom']
         }
       }
     }

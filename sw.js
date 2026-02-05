@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'site-inspector-v2.8.0';
+const CACHE_NAME = 'site-inspector-v2.9.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

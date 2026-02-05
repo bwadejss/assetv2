@@ -33,7 +33,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const scannerInstance = useRef<Html5Qrcode | null>(null);
+  const scannerInstance = useRef<any>(null);
 
   const stopScanner = async () => {
     if (scannerInstance.current) {

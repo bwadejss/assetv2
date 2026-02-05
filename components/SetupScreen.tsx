@@ -9,7 +9,7 @@ interface SetupScreenProps {
   onClear?: () => void;
 }
 
-const APP_VERSION = "v2.8.0";
+const APP_VERSION = "v2.9.0";
 
 export const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, initialData, onClear }) => {
   const [userName, setUserName] = useState(initialData?.userName || '');
