@@ -10,7 +10,7 @@ import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
 import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info } from 'lucide-react';
 
-const APP_VERSION = "v2.9.0";
+const APP_VERSION = "v2.9.1";
 const STORAGE_KEY = "SITE_INSPECTOR_PERSIST_V2";
 
 const App: React.FC = () => {

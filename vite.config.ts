@@ -9,8 +9,9 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     rollupOptions: {
-      // We allow Vite to bundle these for production to avoid Import Map runtime issues
-      // while keeping them available via CDN for development/ESM environments.
+      // Explicitly externalize dependencies provided by the browser's importmap
+      // that are not installed in the local node_modules.
+      external: ['html5-qrcode'],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom']
