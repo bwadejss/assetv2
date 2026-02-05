@@ -4,6 +4,7 @@ import { Camera, ChevronLeft, Plus, Minus, X, Scan, AlertCircle, Image as ImageI
 import { compressImage } from '../services/imageResizer.ts';
 import { ConfirmModal } from './ConfirmModal.tsx';
 import { PhotoEditor } from './PhotoEditor.tsx';
+// @ts-ignore
 import { Html5Qrcode } from 'html5-qrcode';
 
 interface ObservationFormProps {
@@ -70,7 +71,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
         await scanner.start(
           { facingMode: "environment" }, 
           config, 
-          (decodedText) => {
+          (decodedText: string) => {
             setAssetId(decodedText);
             if ('vibrate' in navigator) navigator.vibrate(100);
             stopScanner();
@@ -250,7 +251,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
         </div>
       )}
 
-      {editingPhotoIndex !== null && <PhotoEditor base64={photos[editingPhotoIndex]} onSave={(newB) => {
+      {editingPhotoIndex !== null && <PhotoEditor base64={photos[editingPhotoIndex]} onSave={(newB: string) => {
         const updated = [...photos]; updated[editingPhotoIndex] = newB; setPhotos(updated); setEditingPhotoIndex(null);
       }} onCancel={() => setEditingPhotoIndex(null)} darkMode={darkMode} />}
       
