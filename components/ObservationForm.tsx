@@ -54,6 +54,7 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
     setScanError(null);
     
     try {
+      // Enterprise Android Profiles need high-compatibility constraints
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false
@@ -61,8 +62,9 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
 
       if (scannerVideoRef.current) {
         scannerVideoRef.current.srcObject = stream;
+        // Native Barcode Support Check
         if (!('BarcodeDetector' in window)) {
-           setScanError("Native scanning not supported.");
+           setScanError("This browser doesn't support native scanning. Please enter ID manually or use a modern browser.");
            return;
         }
 
@@ -77,11 +79,13 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
               if ('vibrate' in navigator) navigator.vibrate(100);
               stopScanner();
             }
-          } catch (e) {}
+          } catch (e) {
+            // Silently retry frame
+          }
         }, 500);
       }
     } catch (err: any) {
-      setScanError(`Camera Access Blocked: ${err.message}`);
+      setScanError(`Camera Access Blocked: ${err.message || 'Check permissions'}`);
     }
   };
 
@@ -93,13 +97,14 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setIsProcessing(true);
-    // Fix: Explicitly typing as File[] to prevent 'unknown' inference during iteration, satisfying the Blob parameter requirement for readAsDataURL.
-    const filesToProcess: File[] = Array.from(files).slice(0, 10 - photos.length);
+    // Explicitly casting the array from FileList to File[] for robust typing
+    const filesToProcess = Array.from(files).slice(0, 10 - photos.length) as File[];
     for (const file of filesToProcess) {
       const reader = new FileReader();
       const base64 = await new Promise<string>((resolve) => {
         reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
+        // Explicitly cast file as Blob to satisfy TypeScript in environments with weak FileList inference
+        reader.readAsDataURL(file as Blob);
       });
       const optimized = await compressImage(base64);
       setPhotos(prev => [...prev, optimized]);
@@ -196,27 +201,18 @@ export const ObservationForm: React.FC<ObservationFormProps> = ({ category, init
               </div>
             ))}
             {photos.length < 10 && (
-              <div className="flex gap-2 col-span-2">
-                <button onClick={() => cameraInputRef.current?.click()} className="flex-1 aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-slate-400">
-                  <Camera size={24} />
-                  <span className="text-[8px] font-black mt-1 uppercase">Camera</span>
-                </button>
-                <button onClick={() => galleryInputRef.current?.click()} className="flex-1 aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-slate-400">
-                  <ImageIcon size={24} />
-                  <span className="text-[8px] font-black mt-1 uppercase">Gallery</span>
-                </button>
-              </div>
+              <button onClick={() => cameraInputRef.current?.click()} className="aspect-square border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-slate-400">
+                <Camera size={24} />
+                <span className="text-[8px] font-black mt-1">CAMERA</span>
+              </button>
             )}
           </div>
           <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
-          <input type="file" ref={galleryInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" />
         </div>
 
         <div className="pt-8 flex gap-3">
           <button onClick={() => setShowBackWarning(true)} className="flex-1 py-5 border rounded-xl font-black text-sm">DISCARD</button>
-          <button onClick={handleSave} disabled={isProcessing} className="flex-1 py-5 bg-blue-600 text-white rounded-xl font-black text-sm shadow-xl flex items-center justify-center gap-2">
-            {isProcessing && <Loader2 className="animate-spin" size={18} />} SAVE
-          </button>
+          <button onClick={handleSave} disabled={isProcessing} className="flex-1 py-5 bg-blue-600 text-white rounded-xl font-black text-sm shadow-xl">SAVE</button>
         </div>
       </div>
 
