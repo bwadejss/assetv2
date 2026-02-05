@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'site-inspector-v2.7.0';
+const CACHE_NAME = 'site-inspector-v2.8.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,10 +7,11 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap',
-  'https://esm.sh/react@^19.2.3',
-  'https://esm.sh/react-dom@^19.2.3/',
-  'https://esm.sh/lucide-react@^0.563.0',
-  'https://esm.sh/docx@^9.5.1'
+  'https://esm.sh/react@19.0.0',
+  'https://esm.sh/react-dom@19.0.0',
+  'https://esm.sh/lucide-react@0.460.0',
+  'https://esm.sh/docx@9.5.1',
+  'https://esm.sh/html5-qrcode@2.3.8'
 ];
 
 self.addEventListener('install', (event) => {
