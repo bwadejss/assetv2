@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta http-equiv="Permissions-Policy" content="web-share=*">
+    <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*, geolocation=*, interest-cohort=()">
     <meta name="theme-color" content="#0f172a" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-web-app-status-bar-style" content="black-translucent" />
@@ -32,25 +32,41 @@
         font-family: 'Inter', sans-serif; 
         margin: 0; 
         padding: 0; 
-        transition: background-color 0.3s ease;
         background-color: #020617;
+        overscroll-behavior-y: contain;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
       }
       .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
       ::-webkit-scrollbar { display: none; }
-      .app-container { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "docx": "https://esm.sh/docx@^9.5.1",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
+    "docx": "https://esm.sh/docx@9.5.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
     "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3"
   }
 }
+</script>
+<script>
+  window.onerror = function(msg, url, line, col, error) {
+    console.error('CRITICAL BOOT ERROR:', msg, error);
+    return false;
+  };
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>

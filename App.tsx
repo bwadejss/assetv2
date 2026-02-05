@@ -8,9 +8,10 @@ import { ConfirmModal } from './components/ConfirmModal.tsx';
 import { FileGuideModal } from './components/FileGuideModal.tsx';
 import { AssetCategory, InspectionData, SiteType, AppView, Observation, DEFAULT_SCORING_CONFIG } from './types.ts';
 import { generateInspectionWordDoc } from './services/docGenerator.ts';
-import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info, Share2, Download } from 'lucide-react';
+import { ClipboardCheck, Loader2, BookOpen, Settings, Moon, Sun, Home, CheckCircle2, Terminal, Info } from 'lucide-react';
 
-const APP_VERSION = "v2.4.1";
+const APP_VERSION = "v2.6.5";
+const STORAGE_KEY = "SITE_INSPECTOR_PERSIST_V2";
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SETUP');
@@ -26,18 +27,42 @@ const App: React.FC = () => {
   const [pendingHomeAction, setPendingHomeAction] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const [data, setData] = useState<InspectionData>({
-    userName: '',
-    siteName: '',
-    siteType: SiteType.WTW,
-    date: new Date().toLocaleDateString(),
-    compliantCounts: {},
-    observations: [],
-    config: DEFAULT_SCORING_CONFIG
+  const [data, setData] = useState<InspectionData>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const defaultData: InspectionData = {
+      userName: '',
+      siteName: '',
+      siteType: SiteType.WTW,
+      date: new Date().toLocaleDateString(),
+      compliantCounts: {},
+      observations: [],
+      config: DEFAULT_SCORING_CONFIG
+    };
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Sanity Check: Ensure all critical properties exist to avoid undefined errors
+        return {
+          ...defaultData,
+          ...parsed,
+          compliantCounts: parsed.compliantCounts || {},
+          observations: parsed.observations || [],
+          config: { ...DEFAULT_SCORING_CONFIG, ...(parsed.config || {}) }
+        };
+      } catch (e) {
+        console.error("Data Corruption Detected - Resetting Storage", e);
+      }
+    }
+    return defaultData;
   });
 
   const [activeCategory, setActiveCategory] = useState<AssetCategory>('');
   const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [data]);
 
   const logDebug = useCallback((msg: string) => {
     console.log(`[DEBUG] ${msg}`);
@@ -50,7 +75,6 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   const handleStart = (userName: string, siteName: string, siteType: SiteType) => {
-    logDebug(`START: User=${userName} Site=${siteName}`);
     setData(prev => ({ ...prev, userName, siteName, siteType, date: new Date().toLocaleDateString() }));
     setView('DASHBOARD');
   };
@@ -90,15 +114,16 @@ const App: React.FC = () => {
   };
 
   const confirmHome = () => {
-    setData(prev => ({
-      ...prev,
+    setData({
       userName: '',
       siteName: '',
       siteType: SiteType.WTW,
       date: new Date().toLocaleDateString(),
       compliantCounts: {},
       observations: [],
-    }));
+      config: data.config
+    });
+    localStorage.removeItem(STORAGE_KEY);
     setLastFilename(null);
     setLastBlob(null);
     setView('SETUP');
@@ -106,7 +131,6 @@ const App: React.FC = () => {
   };
 
   const triggerDownload = (blob: Blob, filename: string) => {
-    logDebug(`DOWNLOAD: Triggering browser download for ${filename}`);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -117,60 +141,25 @@ const App: React.FC = () => {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
-  const handleShare = async () => {
-    if (!lastBlob || !lastFilename) return;
-    
-    try {
-      const file = new File([lastBlob], lastFilename, { 
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
-      });
-      
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        logDebug("SHARE: Attempting native file share");
-        await navigator.share({
-          files: [file],
-          title: 'Site Report',
-          text: `Inspection report for ${data.siteName}`,
-        });
-      } else {
-        logDebug("SHARE: Browser does not support file sharing, showing guide");
-        setShowFileGuide(true);
-      }
-    } catch (error) {
-      logDebug(`SHARE ERROR: ${error}`);
-      setShowFileGuide(true);
-    }
-  };
-
   const handleExport = async () => {
-    logDebug(`EXPORT: Requested for ${data.siteName}`);
     setExporting(true);
     try {
-      const filename = `${data.siteName.replace(/\s+/g, '_')}_Report_${data.date.replace(/\//g, '-')}.docx`;
+      const now = new Date();
+      const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+      const filename = `${data.siteName.replace(/\s+/g, '_')}_${timestamp}_Report.docx`;
       const blob = await generateInspectionWordDoc(data, false); 
       setLastBlob(blob);
       setLastFilename(filename);
-      
-      // Auto-download as well so it's saved locally
       triggerDownload(blob, filename);
-      
-      logDebug(`SUCCESS: Report ready.`);
       setExporting(false);
-      
-      // Try to share immediately if possible
-      handleShare();
     } catch (error) {
-      logDebug(`ERROR: Export failed - ${error}`);
       alert('Failed to generate report.');
       setExporting(false);
     }
   };
 
-  const clearLogs = () => setDebugLogs([]);
-
   return (
     <div className={`fixed inset-0 flex flex-col max-w-lg mx-auto shadow-2xl overflow-hidden border-x transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'}`}>
-      
       <header className={`p-4 shadow-md flex-shrink-0 z-[100] flex justify-between items-center transition-colors duration-300 ${darkMode ? 'bg-slate-850 text-white' : 'bg-blue-700 text-white'}`}>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate">
@@ -180,7 +169,6 @@ const App: React.FC = () => {
             {APP_VERSION}
           </p>
         </div>
-        
         <div className="flex items-center gap-1">
           {view !== 'SETUP' && (
             <button onClick={() => setPendingHomeAction(true)} className="p-3 hover:bg-white/10 rounded-lg transition-colors"><Home size={22} /></button>
@@ -193,13 +181,13 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${view === 'DASHBOARD' ? (lastFilename ? 'pb-44' : 'pb-32') : 'pb-4'}`}>
+      <main className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${view === 'DASHBOARD' ? 'pb-32' : 'pb-4'}`}>
         {view === 'SETUP' && (
           <SetupScreen 
             onStart={handleStart} 
             darkMode={darkMode} 
             initialData={data.siteName ? data : undefined} 
-            onClear={() => setPendingHomeAction(true)} 
+            onClear={confirmHome} 
           />
         )}
         {view === 'DASHBOARD' && (
@@ -230,15 +218,9 @@ const App: React.FC = () => {
               <div className="flex-1 flex items-center gap-2 px-2 overflow-hidden">
                 <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
                 <span className={`text-[10px] font-black uppercase tracking-tight truncate ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                  {lastFilename}
+                  Report Ready: {lastFilename}
                 </span>
               </div>
-              <button 
-                onClick={handleShare}
-                className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all bg-emerald-600 text-white"
-              >
-                <Share2 size={14} /> Send to Teams
-              </button>
               <button 
                 onClick={() => setShowFileGuide(true)}
                 className={`p-2 rounded-lg flex items-center justify-center transition-all ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}
@@ -247,7 +229,6 @@ const App: React.FC = () => {
               </button>
             </div>
           )}
-          
           <button 
             type="button"
             onClick={handleExport}
@@ -257,7 +238,7 @@ const App: React.FC = () => {
             {exporting ? (
               <><Loader2 className="w-5 h-5 animate-spin" /> GENERATING...</>
             ) : (
-              <><ClipboardCheck className="w-5 h-5" /> {lastFilename ? 'RE-GENERATE REPORT' : 'GENERATE SITE REPORT'}</>
+              <><ClipboardCheck className="w-5 h-5" /> {lastFilename ? 'GENERATE NEW REPORT VERSION' : 'GENERATE SITE REPORT'}</>
             )}
           </button>
         </div>
@@ -270,56 +251,19 @@ const App: React.FC = () => {
               <Terminal size={12} />
               <span className="font-bold tracking-widest">LIVE DEBUG LOG</span>
             </div>
-            <button onClick={clearLogs} className="hover:text-white uppercase">{"[Clear]"}</button>
+            <button onClick={() => setDebugLogs([])} className="hover:text-white uppercase">{"[Clear]"}</button>
           </div>
           <div className="overflow-y-auto flex-1 space-y-1">
-            {debugLogs.length === 0 ? (
-              <p className="opacity-40 italic">Waiting for events...</p>
-            ) : (
-              debugLogs.map((log, i) => <div key={i} className="whitespace-nowrap">{"- "}{log}</div>)
-            )}
+            {debugLogs.length === 0 ? <p className="opacity-40 italic">Waiting for events...</p> : debugLogs.map((log, i) => <div key={i} className="whitespace-nowrap">{"- "}{log}</div>)}
           </div>
         </div>
       )}
 
-      <FileGuideModal 
-        isOpen={showFileGuide} 
-        onClose={() => setShowFileGuide(false)} 
-        lastFilename={lastFilename}
-        onRetry={() => lastBlob && lastFilename && triggerDownload(lastBlob, lastFilename)}
-        darkMode={darkMode}
-      />
-
-      <ConfirmModal 
-        isOpen={pendingHomeAction} 
-        onClose={() => setPendingHomeAction(false)} 
-        onConfirm={confirmHome}
-        title="EXIT TO MENU?"
-        message="This will clear all current session data."
-        darkMode={darkMode}
-      />
-
-      <ConfirmModal 
-        isOpen={!!pendingDeleteId} 
-        onClose={() => setPendingDeleteId(null)} 
-        onConfirm={confirmDelete}
-        title="DELETE DEFECT?"
-        message="This action cannot be undone."
-        darkMode={darkMode}
-      />
-
+      <FileGuideModal isOpen={showFileGuide} onClose={() => setShowFileGuide(false)} lastFilename={lastFilename} onRetry={() => lastBlob && lastFilename && triggerDownload(lastBlob, lastFilename)} darkMode={darkMode} />
+      <ConfirmModal isOpen={pendingHomeAction} onClose={() => setPendingHomeAction(false)} onConfirm={confirmHome} title="EXIT TO MENU?" message="This will clear all current session data." darkMode={darkMode} />
+      <ConfirmModal isOpen={!!pendingDeleteId} onClose={() => setPendingDeleteId(null)} onConfirm={confirmDelete} title="DELETE DEFECT?" message="This action cannot be undone." darkMode={darkMode} />
       {showReadme && <ReadmeModal onClose={() => setShowReadme(false)} darkMode={darkMode} />}
-      {showSettings && (
-        <SettingsModal 
-          config={data.config} 
-          onSave={(newConfig) => {
-            logDebug(`SETTINGS: Config updated. Debug=${newConfig.debugMode}`);
-            setData(prev => ({ ...prev, config: newConfig }));
-          }} 
-          onClose={() => setShowSettings(false)} 
-          darkMode={darkMode} 
-        />
-      )}
+      {showSettings && <SettingsModal config={data.config} onSave={(newConfig) => setData(prev => ({ ...prev, config: newConfig }))} onClose={() => setShowSettings(false)} darkMode={darkMode} />}
     </div>
   );
 };
